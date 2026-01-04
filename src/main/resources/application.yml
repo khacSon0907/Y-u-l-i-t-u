@@ -1,0 +1,16 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: demo
+
+  data:
+    mongodb:
+      uri: mongodb+srv://cakeyummy543:gT7zl5A6Gjqn5vwK@demodb.gjvjuqt.mongodb.net/demoDB?retryWrites=true&w=majority&appName=demoDB
+
+jwt:
+  secret: my-super-secret-key-my-super-secret-key
+  access-token-expiration: 900000     # 15 phút
+  refresh-token-expiration: 604800000 # 7 ngày
+

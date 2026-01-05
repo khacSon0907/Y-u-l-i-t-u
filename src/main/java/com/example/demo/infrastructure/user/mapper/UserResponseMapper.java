@@ -20,6 +20,7 @@ public class UserResponseMapper {
                 .username(entity.getUsername())
                 .email(entity.getEmail())
                 .year(entity.getYear())
+                .role(entity.getRole().name())
                 .build();
     }
 }

@@ -2,6 +2,7 @@ package com.example.demo.controller.auth;
 
 
 
+import com.example.demo.domain.dto.req.CreateUserReq;
 import com.example.demo.domain.dto.req.LoginReq;
 import com.example.demo.domain.dto.res.AuthResponse;
 import com.example.demo.domain.dto.res.UserResponse;
@@ -21,7 +22,25 @@ public class AuthController {
 
     private final IAuthService authService;
 
-    @PostMapping("/login")
+    @PostMapping("/register")
+    public ApiResponse<UserResponse> register(
+            @Valid @RequestBody CreateUserReq req,
+            HttpServletRequest request
+    )
+    {
+        UserResponse userResponse = authService.register(req);
+
+        return ApiResponse.success(
+                HttpStatus.CREATED.value(),
+                "AUTH.REGISTER_SUCCESS",
+                "Register successfully",
+                userResponse,
+                request.getRequestURI(),
+                MDC.get("traceId")
+        );
+    }
+
+            @PostMapping("/login")
     public ApiResponse<AuthResponse> login(
             @Valid @RequestBody LoginReq req,
             HttpServletRequest request

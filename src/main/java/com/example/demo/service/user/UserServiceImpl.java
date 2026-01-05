@@ -4,6 +4,7 @@ package com.example.demo.service.user;
 import com.example.demo.domain.dto.req.CreateUserReq;
 import com.example.demo.domain.dto.res.UserResponse;
 import com.example.demo.domain.entities.UserEntity;
+import com.example.demo.domain.enums.Role;
 import com.example.demo.exception.BusinessException;
 import com.example.demo.exception.user.UserError;
 import com.example.demo.infrastructure.user.mapper.UserResponseMapper;
@@ -48,6 +49,7 @@ public class UserServiceImpl implements IUserService {
                 .email(req.getEmail())
                 .password(passwordEncoder.encode(req.getPassword()))
                 .year(req.getYear())
+                .role(Role.ROLE_USER)
                 .build();
 
         // 5️⃣ Save

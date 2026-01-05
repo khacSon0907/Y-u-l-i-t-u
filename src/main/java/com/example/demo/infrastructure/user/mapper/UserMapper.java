@@ -1,11 +1,14 @@
 package com.example.demo.infrastructure.user.mapper;
 
 import com.example.demo.domain.entities.UserEntity;
+import com.example.demo.domain.enums.Role;
 import com.example.demo.domain.model.UserDocument;
+
+import java.util.Optional;
 
 public class UserMapper {
 
-
+    // Document (Mongo) -> Entity (Domain)
     public static UserEntity toEntity(UserDocument document) {
         if (document == null) return null;
 
@@ -15,9 +18,13 @@ public class UserMapper {
                 .email(document.getEmail())
                 .password(document.getPassword())
                 .year(document.getYear())
+                // ⭐ fallback cho user cũ
+                .role(Optional.ofNullable(document.getRole())
+                        .orElse(Role.ROLE_USER))
                 .build();
     }
 
+    // Entity (Domain) -> Document (Mongo)
     public static UserDocument toDocument(UserEntity entity) {
         if (entity == null) return null;
 
@@ -27,6 +34,7 @@ public class UserMapper {
                 .email(entity.getEmail())
                 .password(entity.getPassword())
                 .year(entity.getYear())
+                .role(entity.getRole())
                 .build();
     }
 }

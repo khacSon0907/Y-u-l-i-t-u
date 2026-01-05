@@ -1,6 +1,7 @@
 package com.example.demo.service.auth;
 
 import com.example.demo.config.jwt.JwtService;
+import com.example.demo.domain.dto.req.CreateUserReq;
 import com.example.demo.domain.dto.req.LoginReq;
 import com.example.demo.domain.dto.res.AuthResponse;
 import com.example.demo.domain.dto.res.UserResponse;
@@ -21,6 +22,11 @@ public class AuthServiceImpl implements IAuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
 
+
+    @Override
+    public UserResponse register(CreateUserReq req) {
+        return userService.createUser(req);
+    }
     @Override
     public AuthResponse login(LoginReq req) {
 

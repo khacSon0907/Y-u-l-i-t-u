@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.Date;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -17,42 +18,61 @@ public class JwtService {
 
     private final JwtProperties jwtProperties;
 
+    // 🔑 Key ký JWT
     private Key signingKey() {
         return Keys.hmacShaKeyFor(
                 jwtProperties.getSecret().getBytes(StandardCharsets.UTF_8)
         );
     }
 
-    // 🔐 Access Token
-    public String generateAccessToken(String subject) {
-        return generateToken(
-                subject,
-                jwtProperties.getAccessTokenExpiration()
-        );
-    }
-
-    // 🔁 Refresh Token
-    public String generateRefreshToken(String subject) {
-        return generateToken(
-                subject,
-                jwtProperties.getRefreshTokenExpiration()
-        );
-    }
-
-    private String generateToken(String subject, long expiration) {
+    // =========================
+    // 🔐 ACCESS TOKEN (có ROLE)
+    // =========================
+    public String generateAccessToken(String userId, List<String> roles) {
         Date now = new Date();
+
         return Jwts.builder()
-                .setSubject(subject)
+                .setSubject(userId)                 // userId ổn định
+                .claim("roles", roles)              // phân quyền
                 .setIssuedAt(now)
-                .setExpiration(new Date(now.getTime() + expiration))
+                .setExpiration(
+                        new Date(now.getTime() + jwtProperties.getAccessTokenExpiration())
+                )
                 .signWith(signingKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
 
-    public String extractSubject(String token) {
+    // =========================
+    // 🔁 REFRESH TOKEN (không role)
+    // =========================
+    public String generateRefreshToken(String userId) {
+        Date now = new Date();
+
+        return Jwts.builder()
+                .setSubject(userId)
+                .setIssuedAt(now)
+                .setExpiration(
+                        new Date(now.getTime() + jwtProperties.getRefreshTokenExpiration())
+                )
+                .signWith(signingKey(), SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    // =========================
+    // 📤 EXTRACT DATA
+    // =========================
+    public String extractUserId(String token) {
         return extractClaims(token).getSubject();
     }
 
+    @SuppressWarnings("unchecked")
+    public List<String> extractRoles(String token) {
+        return extractClaims(token).get("roles", List.class);
+    }
+
+    // =========================
+    // ✅ VALIDATE TOKEN
+    // =========================
     public boolean validateToken(String token) {
         try {
             extractClaims(token);
@@ -62,6 +82,21 @@ public class JwtService {
         }
     }
 
+    public long getRefreshTokenExpiration() {
+        return jwtProperties.getRefreshTokenExpiration();
+    }
+
+
+    // Calculate token expiration time in milliseconds
+    public long getRemainingTime(String token) {
+        Date expiration = extractClaims(token).getExpiration();
+        return expiration.getTime() - System.currentTimeMillis();
+    }
+
+
+    // =========================
+    // 🔍 PARSE JWT
+    // =========================
     private Claims extractClaims(String token) {
         return Jwts.parserBuilder()
                 .setSigningKey(signingKey())

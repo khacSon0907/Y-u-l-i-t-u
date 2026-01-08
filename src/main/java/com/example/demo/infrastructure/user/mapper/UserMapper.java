@@ -20,7 +20,7 @@ public class UserMapper {
                 .year(document.getYear())
                 // ⭐ fallback cho user cũ
                 .role(Optional.ofNullable(document.getRole())
-                        .orElse(Role.ROLE_USER))
+                        .orElse(Role.USER))
                 .build();
     }
 

@@ -50,4 +50,10 @@ public class UserRepositoryImpl implements IUserRepository {
         return mongoUserRepository.findByEmail(email)
                 .map(UserMapper::toEntity);
     }
+
+    @Override
+    public Optional<UserEntity> findById(String id) {
+        return mongoUserRepository.findById(id)
+                .map(UserMapper::toEntity);
+    }
 }

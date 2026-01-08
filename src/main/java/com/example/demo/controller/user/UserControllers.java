@@ -1,5 +1,6 @@
 package com.example.demo.controller.user;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.example.demo.domain.dto.req.CreateUserReq;
 import com.example.demo.domain.dto.res.UserResponse;
 import com.example.demo.service.user.IUserService;
@@ -17,9 +18,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @RequestMapping("/api/users")
 public class UserControllers {
-
     private final IUserService userService;
-
     @PostMapping
     public ApiResponse<UserResponse> createUser(
             @Valid @RequestBody CreateUserReq req,
@@ -36,7 +35,7 @@ public class UserControllers {
                 MDC.get("traceId")
         );
     }
-
+    @PreAuthorize("hasRole('USER')")
     @GetMapping
     public ApiResponse<List<UserResponse>> getAllUsers(
             HttpServletRequest request
@@ -52,4 +51,5 @@ public class UserControllers {
                 MDC.get("traceId")
         );
     }
+
 }

@@ -12,6 +12,5 @@ public interface MongoUserRepository extends MongoRepository<UserDocument, Strin
     boolean existsByUsername(String username);
 
 
-    // 👉 THÊM DÒNG NÀY
     Optional<UserDocument> findByEmail(String email);
 }

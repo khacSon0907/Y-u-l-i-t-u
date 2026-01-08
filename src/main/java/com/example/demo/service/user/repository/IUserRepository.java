@@ -19,4 +19,7 @@ public interface IUserRepository {
 
     // 👉 THÊM DÒNG NÀY
     Optional<UserEntity> findByEmail(String email);
+
+    // Find by id (needed for update)
+    Optional<UserEntity> findById(String id);
 }

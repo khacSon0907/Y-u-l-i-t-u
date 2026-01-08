@@ -2,6 +2,7 @@ package com.example.demo.service.user;
 
 
 import com.example.demo.domain.dto.req.CreateUserReq;
+import com.example.demo.domain.dto.req.UpdateUserReq;
 import com.example.demo.domain.dto.res.UserResponse;
 import com.example.demo.domain.entities.UserEntity;
 import com.example.demo.domain.enums.Role;
@@ -49,7 +50,7 @@ public class UserServiceImpl implements IUserService {
                 .email(req.getEmail())
                 .password(passwordEncoder.encode(req.getPassword()))
                 .year(req.getYear())
-                .role(Role.ROLE_USER)
+                .role(Role.USER)
                 .build();
 
         // 5️⃣ Save
@@ -70,5 +71,36 @@ public class UserServiceImpl implements IUserService {
     @Override
     public Optional<UserEntity> getByEmail(String email) {
         return userRepository.findByEmail(email);
+    }
+
+    @Override
+    public UserResponse updateUser(String userId, UpdateUserReq req) {
+        // 1️⃣ Fetch existing user
+        UserEntity existing = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(UserError.USER_NOT_FOUND));
+
+        // 2️⃣ Update username if provided
+        if (req.getUsername() != null && !req.getUsername().isBlank()) {
+            // If username changed, ensure uniqueness
+            if (!req.getUsername().equals(existing.getUsername()) && userRepository.existsByUsername(req.getUsername())) {
+                throw new BusinessException(UserError.USERNAME_EXISTS);
+            }
+            existing.setUsername(req.getUsername());
+        }
+
+        // 3️⃣ Update year if provided
+        if (req.getYear() != null) {
+            int age = Year.now().getValue() - req.getYear();
+            if (age < 18) {
+                throw new BusinessException(UserError.UNDER_AGE);
+            }
+            existing.setYear(req.getYear());
+        }
+
+        // 4️⃣ Persist
+        UserEntity saved = userRepository.save(existing);
+
+        // 5️⃣ Map to response
+        return UserResponseMapper.toResponse(saved);
     }
 }

@@ -1,9 +1,9 @@
 package com.example.demo.controller.auth;
 
 
-
 import com.example.demo.domain.dto.req.CreateUserReq;
 import com.example.demo.domain.dto.req.LoginReq;
+import com.example.demo.domain.dto.req.UpdateUserReq;
 import com.example.demo.domain.dto.res.AuthResponse;
 import com.example.demo.domain.dto.res.UserResponse;
 import com.example.demo.service.auth.IAuthService;
@@ -53,6 +53,24 @@ public class AuthController {
                 "AUTH.LOGIN_SUCCESS",
                 "Login successfully",
                 authResponse,
+                request.getRequestURI(),
+                MDC.get("traceId")
+        );
+    }
+
+    @PutMapping("/user/{userId}")
+    public ApiResponse<UserResponse> updateUser(
+            @PathVariable("userId") String userId,
+            @Valid @RequestBody UpdateUserReq req,
+            HttpServletRequest request
+    ) {
+        UserResponse userResponse = authService.updateUser(userId, req);
+
+        return ApiResponse.success(
+                HttpStatus.OK.value(),
+                "AUTH.UPDATE_SUCCESS",
+                "Update user successfully",
+                userResponse,
                 request.getRequestURI(),
                 MDC.get("traceId")
         );

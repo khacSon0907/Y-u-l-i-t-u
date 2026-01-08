@@ -1,5 +1,5 @@
 server:
-  port: ${SERVER_PORT:8080}
+  port: 8080
 
 spring:
   application:
@@ -7,9 +7,9 @@ spring:
 
   data:
     mongodb:
-      uri: ${MONGO_URI}
+      uri: mongodb+srv://cakeyummy543:gT7zl5A6Gjqn5vwK@demodb.gjvjuqt.mongodb.net/demoDB?retryWrites=true&w=majority&appName=demoDB
 
 jwt:
-  secret: ${JWT_SECRET}
-  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION}
-  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION}
+  secret: my-super-secret-key-my-super-secret-key
+  access-token-expiration: 900000        # 15 phút
+  refresh-token-expiration: 604800000    # 7 ngày

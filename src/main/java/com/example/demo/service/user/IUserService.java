@@ -1,6 +1,7 @@
 package com.example.demo.service.user;
 
 import com.example.demo.domain.dto.req.CreateUserReq;
+import com.example.demo.domain.dto.req.UpdateUserReq;
 import com.example.demo.domain.dto.res.UserResponse;
 import com.example.demo.domain.entities.UserEntity;
 
@@ -15,5 +16,7 @@ public interface IUserService {
 
     Optional<UserEntity> getByEmail(String email);
 
-}
+    // Update user by id (only username and year)
+    UserResponse updateUser(String userId, UpdateUserReq req);
 
+}

@@ -16,6 +16,8 @@ public interface IUserService {
 
     Optional<UserEntity> getByEmail(String email);
 
+    Optional<UserEntity> getUserById(String userId);
+
     // Update user by id (only username and year)
     UserResponse updateUser(String userId, UpdateUserReq req);
 

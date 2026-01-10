@@ -3,6 +3,7 @@ package com.example.demo.controller.auth;
 
 import com.example.demo.domain.dto.req.CreateUserReq;
 import com.example.demo.domain.dto.req.LoginReq;
+import com.example.demo.domain.dto.req.RefreshTokenReq;
 import com.example.demo.domain.dto.req.UpdateUserReq;
 import com.example.demo.domain.dto.res.AuthResponse;
 import com.example.demo.domain.dto.res.UserResponse;
@@ -40,7 +41,7 @@ public class AuthController {
         );
     }
 
-            @PostMapping("/login")
+    @PostMapping("/login")
     public ApiResponse<AuthResponse> login(
             @Valid @RequestBody LoginReq req,
             HttpServletRequest request
@@ -52,6 +53,24 @@ public class AuthController {
                 HttpStatus.OK.value(),
                 "AUTH.LOGIN_SUCCESS",
                 "Login successfully",
+                authResponse,
+                request.getRequestURI(),
+                MDC.get("traceId")
+        );
+    }
+
+    @PostMapping("/refresh-token")
+    public ApiResponse<AuthResponse> refreshToken(
+            @Valid @RequestBody RefreshTokenReq req,
+            HttpServletRequest request
+    )
+    {
+        AuthResponse authResponse = authService.refreshToken(req);
+
+        return ApiResponse.success(
+                HttpStatus.OK.value(),
+                "AUTH.REFRESH_TOKEN_SUCCESS",
+                "Refresh token successfully",
                 authResponse,
                 request.getRequestURI(),
                 MDC.get("traceId")
@@ -71,6 +90,28 @@ public class AuthController {
                 "AUTH.UPDATE_SUCCESS",
                 "Update user successfully",
                 userResponse,
+                request.getRequestURI(),
+                MDC.get("traceId")
+        );
+    }
+
+    @PostMapping("/logout")
+    public ApiResponse<Void> logout(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            HttpServletRequest request
+    ) {
+        if (authorization == null || !authorization.startsWith("Bearer ")) {
+            throw new IllegalArgumentException("Missing or invalid Authorization header");
+        }
+
+        String token = authorization.substring(7);
+        authService.logout(token);
+
+        return ApiResponse.success(
+                HttpStatus.OK.value(),
+                "AUTH.LOGOUT_SUCCESS",
+                "Logout successfully",
+                null,
                 request.getRequestURI(),
                 MDC.get("traceId")
         );

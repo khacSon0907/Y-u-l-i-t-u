@@ -74,6 +74,11 @@ public class UserServiceImpl implements IUserService {
     }
 
     @Override
+    public Optional<UserEntity> getUserById(String userId) {
+        return userRepository.findById(userId);
+    }
+
+    @Override
     public UserResponse updateUser(String userId, UpdateUserReq req) {
         // 1️⃣ Fetch existing user
         UserEntity existing = userRepository.findById(userId)

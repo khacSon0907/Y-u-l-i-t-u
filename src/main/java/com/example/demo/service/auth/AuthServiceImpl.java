@@ -1,8 +1,10 @@
 package com.example.demo.service.auth;
 
+import com.example.demo.exception.auth.AuthError;
 import com.example.demo.config.jwt.JwtService;
 import com.example.demo.domain.dto.req.CreateUserReq;
 import com.example.demo.domain.dto.req.LoginReq;
+import com.example.demo.domain.dto.req.RefreshTokenReq;
 import com.example.demo.domain.dto.req.UpdateUserReq;
 import com.example.demo.domain.dto.res.AuthResponse;
 import com.example.demo.domain.dto.res.UserResponse;
@@ -52,18 +54,18 @@ public class AuthServiceImpl implements IAuthService {
             throw new BusinessException(UserError.INVALID_CREDENTIALS);
         }
 
-        // 3️⃣ Chuẩn production: subject = userId
         String userId = user.getId();
 
-        // 4️⃣ Convert role → Spring Security format
-        // VD: USER → ROLE_USER
+        // 3️⃣ Role → ROLE_*
         List<String> roles = List.of(
                 "ROLE_" + user.getRole().name()
         );
 
-        // 5️⃣ Generate token
+        // 4️⃣ Generate tokens
         String accessToken = jwtService.generateAccessToken(userId, roles);
         String refreshToken = jwtService.generateRefreshToken(userId);
+
+        // 5️⃣ Lưu refresh token vào Redis
         redisService.saveRefreshToken(
                 userId,
                 refreshToken,
@@ -78,6 +80,80 @@ public class AuthServiceImpl implements IAuthService {
                 .build();
     }
 
+    // =========================
+    // 🚪 LOGOUT (CHUẨN)
+    // =========================
+    @Override
+    public void logout(String accessToken) {
+
+        // 1️⃣ Extract jti + ttl
+        String jti = jwtService.extractJti(accessToken);
+        long ttlMillis = jwtService.getRemainingTime(accessToken);
+
+        // 2️⃣ Blacklist access token
+        redisService.blacklistAccessToken(jti, ttlMillis);
+
+        // 3️⃣ Xóa refresh token
+        String userId = jwtService.extractUserId(accessToken);
+        redisService.deleteRefreshToken(userId);
+    }
+
+    // =========================
+    // 🔁 REFRESH TOKEN
+    // =========================
+
+    @Override
+    public AuthResponse refreshToken(RefreshTokenReq req) {
+
+        String refreshToken = req.getRefreshToken();
+
+        // 1️⃣ Validate refresh token
+        if (!jwtService.validateToken(refreshToken)) {
+            throw new BusinessException(AuthError.INVALID_REFRESH_TOKEN);
+        }
+
+        // 2️⃣ Extract userId
+        String userId = jwtService.extractUserId(refreshToken);
+
+        // 3️⃣ Check refresh token trong Redis
+        String storedRefreshToken = redisService.getRefreshToken(userId);
+        if (storedRefreshToken == null || !storedRefreshToken.equals(refreshToken)) {
+            throw new BusinessException(AuthError.REFRESH_TOKEN_NOT_FOUND);
+        }
+
+        // 4️⃣ Lấy user
+        UserEntity user = userService.getUserById(userId)
+                .orElseThrow(() ->
+                        new BusinessException(UserError.USER_NOT_FOUND)
+                );
+
+        // 5️⃣ Roles
+        List<String> roles = List.of(
+                "ROLE_" + user.getRole().name()
+        );
+
+        // 6️⃣ Generate token mới
+        String newAccessToken = jwtService.generateAccessToken(userId, roles);
+        String newRefreshToken = jwtService.generateRefreshToken(userId);
+
+        // 7️⃣ Update Redis
+        redisService.saveRefreshToken(
+                userId,
+                newRefreshToken,
+                jwtService.getRefreshTokenExpiration()
+        );
+
+        // 8️⃣ Response
+        return AuthResponse.builder()
+                .accessToken(newAccessToken)
+                .refreshToken(newRefreshToken)
+                .user(UserResponseMapper.toResponse(user))
+                .build();
+    }
+
+    // =========================
+    // ✏️ UPDATE USER
+    // =========================
     @Override
     public UserResponse updateUser(String userId, UpdateUserReq req) {
         return userService.updateUser(userId, req);

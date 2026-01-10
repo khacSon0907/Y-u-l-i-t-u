@@ -1,7 +1,5 @@
 package com.example.demo.service.redis;
 
-
-
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -14,22 +12,26 @@ public class RedisService {
 
     private final StringRedisTemplate redisTemplate;
 
+    // =========================
     // 🔒 BLACKLIST ACCESS TOKEN
-    public void blacklistAccessToken(String token, long ttlMillis) {
+    // =========================
+    public void blacklistAccessToken(String jti, long ttlMillis) {
         redisTemplate.opsForValue().set(
-                "blacklist:access:" + token,
+                "blacklist:access:" + jti,
                 "true",
                 Duration.ofMillis(ttlMillis)
         );
     }
 
-    public boolean isAccessTokenBlacklisted(String token) {
+    public boolean isAccessTokenBlacklisted(String jti) {
         return Boolean.TRUE.equals(
-                redisTemplate.hasKey("blacklist:access:" + token)
+                redisTemplate.hasKey("blacklist:access:" + jti)
         );
     }
 
+    // =========================
     // 🔁 REFRESH TOKEN
+    // =========================
     public void saveRefreshToken(String userId, String refreshToken, long ttlMillis) {
         redisTemplate.opsForValue().set(
                 "refresh:" + userId,

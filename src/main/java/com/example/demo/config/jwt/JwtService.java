@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -26,14 +27,15 @@ public class JwtService {
     }
 
     // =========================
-    // 🔐 ACCESS TOKEN (có ROLE)
+    // 🔐 ACCESS TOKEN
     // =========================
     public String generateAccessToken(String userId, List<String> roles) {
         Date now = new Date();
 
         return Jwts.builder()
-                .setSubject(userId)                 // userId ổn định
-                .claim("roles", roles)              // phân quyền
+                .setId(UUID.randomUUID().toString())   // ✅ jti
+                .setSubject(userId)
+                .claim("roles", roles)
                 .setIssuedAt(now)
                 .setExpiration(
                         new Date(now.getTime() + jwtProperties.getAccessTokenExpiration())
@@ -43,12 +45,13 @@ public class JwtService {
     }
 
     // =========================
-    // 🔁 REFRESH TOKEN (không role)
+    // 🔁 REFRESH TOKEN
     // =========================
     public String generateRefreshToken(String userId) {
         Date now = new Date();
 
         return Jwts.builder()
+                .setId(UUID.randomUUID().toString())   // ✅ jti
                 .setSubject(userId)
                 .setIssuedAt(now)
                 .setExpiration(
@@ -59,10 +62,14 @@ public class JwtService {
     }
 
     // =========================
-    // 📤 EXTRACT DATA
+    // 📤 EXTRACT
     // =========================
     public String extractUserId(String token) {
         return extractClaims(token).getSubject();
+    }
+
+    public String extractJti(String token) {
+        return extractClaims(token).getId();
     }
 
     @SuppressWarnings("unchecked")
@@ -71,7 +78,19 @@ public class JwtService {
     }
 
     // =========================
-    // ✅ VALIDATE TOKEN
+    // ⏱️ TTL
+    // =========================
+    public long getRemainingTime(String token) {
+        Date expiration = extractClaims(token).getExpiration();
+        return expiration.getTime() - System.currentTimeMillis();
+    }
+    public long getRefreshTokenExpiration() {
+        return jwtProperties.getRefreshTokenExpiration();
+    }
+
+
+    // =========================
+    // ✅ VALIDATE
     // =========================
     public boolean validateToken(String token) {
         try {
@@ -82,20 +101,8 @@ public class JwtService {
         }
     }
 
-    public long getRefreshTokenExpiration() {
-        return jwtProperties.getRefreshTokenExpiration();
-    }
-
-
-    // Calculate token expiration time in milliseconds
-    public long getRemainingTime(String token) {
-        Date expiration = extractClaims(token).getExpiration();
-        return expiration.getTime() - System.currentTimeMillis();
-    }
-
-
     // =========================
-    // 🔍 PARSE JWT
+    // 🔍 PARSE
     // =========================
     private Claims extractClaims(String token) {
         return Jwts.parserBuilder()

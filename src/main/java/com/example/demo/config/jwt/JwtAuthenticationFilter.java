@@ -31,47 +31,59 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             FilterChain filterChain
     ) throws ServletException, IOException {
 
+        // =========================
         // 1️⃣ Lấy Authorization header
+        // =========================
         String authHeader = request.getHeader("Authorization");
 
-        // 2️⃣ Không có token → cho qua
+        // Không có token → cho qua
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        // 3️⃣ Lấy token
+        // =========================
+        // 2️⃣ Extract token
+        // =========================
         String token = authHeader.substring(7);
 
-        if(redisService.isAccessTokenBlacklisted(token)) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            return;
-        }
-
-        // 4️⃣ Validate token
+        // =========================
+        // 3️⃣ Validate JWT (chữ ký, exp, format)
+        // =========================
         if (!jwtService.validateToken(token)) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        // 5️⃣ Lấy userId + roles từ JWT
+        // =========================
+        // 4️⃣ Check blacklist (LOGOUT)
+        // =========================
+        String jti = jwtService.extractJti(token);
+        if (redisService.isAccessTokenBlacklisted(jti)) {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            return;
+        }
+
+        // =========================
+        // 5️⃣ Extract userId + roles
+        // =========================
         String userId = jwtService.extractUserId(token);
         List<String> roles = jwtService.extractRoles(token);
 
-        // 6️⃣ Chưa authenticate
+        // =========================
+        // 6️⃣ Chưa authenticate thì mới set
+        // =========================
         if (userId != null &&
                 SecurityContextHolder.getContext().getAuthentication() == null) {
 
-            // Convert role → GrantedAuthority
             List<SimpleGrantedAuthority> authorities = roles.stream()
                     .map(SimpleGrantedAuthority::new)
                     .collect(Collectors.toList());
 
-            // 7️⃣ Tạo Authentication
             UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(
-                            userId,          // principal
-                            null,
+                            userId,        // principal
+                            null,          // credentials
                             authorities
                     );
 
@@ -79,12 +91,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     new WebAuthenticationDetailsSource().buildDetails(request)
             );
 
-            // 8️⃣ Set vào SecurityContext
+            // =========================
+            // 7️⃣ Set vào SecurityContext
+            // =========================
             SecurityContextHolder.getContext()
                     .setAuthentication(authentication);
         }
 
-        // 9️⃣ Cho request đi tiếp
+        // =========================
+        // 8️⃣ Cho request đi tiếp
+        // =========================
         filterChain.doFilter(request, response);
     }
 }

@@ -18,6 +18,13 @@ public enum UserError implements ErrorDescriptor {
             "Username đã tồn tại"
     ),
 
+    USERNAME_INVALID(
+            "BUSINESS",
+            400,
+            "USER.USERNAME_INVALID",
+            "Username không hợp lệ"
+    ),
+
     UNDER_AGE(
             "BUSINESS",
             400,
@@ -25,23 +32,20 @@ public enum UserError implements ErrorDescriptor {
             "Người dùng chưa đủ tuổi"
     ),
 
-    // ---LOGIN------
-
+    // --- LOGIN ---
     INVALID_CREDENTIALS(
             "AUTH",
-                    401,
-                    "AUTH.INVALID_CREDENTIALS",
-                    " mật khẩu không đúng"
+            401,
+            "AUTH.INVALID_CREDENTIALS",
+            "Mật khẩu không đúng"
     ),
 
-    // (OPTIONAL – dùng sau)
     USER_NOT_FOUND(
             "AUTH",
-                    404,
-                    "AUTH.USER_NOT_FOUND",
-                    "Không tìm thấy người dùng"
+            404,
+            "AUTH.USER_NOT_FOUND",
+            "Không tìm thấy người dùng"
     );
-
 
     private final String type;
     private final int httpStatus;
@@ -55,8 +59,23 @@ public enum UserError implements ErrorDescriptor {
         this.defaultMessage = defaultMessage;
     }
 
-    @Override public String type() { return type; }
-    @Override public int httpStatus() { return httpStatus; }
-    @Override public String code() { return code; }
-    @Override public String defaultMessage() { return defaultMessage; }
+    @Override
+    public String type() {
+        return type;
+    }
+
+    @Override
+    public int httpStatus() {
+        return httpStatus;
+    }
+
+    @Override
+    public String code() {
+        return code;
+    }
+
+    @Override
+    public String defaultMessage() {
+        return defaultMessage;
+    }
 }

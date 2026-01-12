@@ -1,6 +1,5 @@
 package com.example.demo.service.user;
 
-
 import com.example.demo.domain.dto.req.CreateUserReq;
 import com.example.demo.domain.dto.req.UpdateUserReq;
 import com.example.demo.domain.dto.res.UserResponse;
@@ -16,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Year;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 @Service
@@ -28,13 +28,20 @@ public class UserServiceImpl implements IUserService {
     @Override
     public UserResponse createUser(CreateUserReq req) {
 
+        String normalizedUsername = normalizeUsername(req.getUsername());
+
+        // Optional: nếu bạn có lỗi riêng cho username invalid thì dùng, không thì bỏ block này
+        if (normalizedUsername == null || normalizedUsername.isBlank()) {
+            throw new BusinessException(UserError.USERNAME_INVALID); // nếu chưa có thì đổi sang lỗi khác bạn đang dùng
+        }
+
         // 1️⃣ Check email
         if (userRepository.existsByEmail(req.getEmail())) {
             throw new BusinessException(UserError.EMAIL_EXISTS);
         }
 
-        // 2️⃣ Check username
-        if (userRepository.existsByUsername(req.getUsername())) {
+        // 2️⃣ Check username (DÙNG normalized)
+        if (userRepository.existsByUsername(normalizedUsername)) {
             throw new BusinessException(UserError.USERNAME_EXISTS);
         }
 
@@ -44,9 +51,9 @@ public class UserServiceImpl implements IUserService {
             throw new BusinessException(UserError.UNDER_AGE);
         }
 
-        // 4️⃣ Encode password
+        // 4️⃣ Encode password + Save (DÙNG normalized)
         UserEntity user = UserEntity.builder()
-                .username(req.getUsername())
+                .username(normalizedUsername)
                 .email(req.getEmail())
                 .password(passwordEncoder.encode(req.getPassword()))
                 .year(req.getYear())
@@ -56,7 +63,7 @@ public class UserServiceImpl implements IUserService {
         // 5️⃣ Save
         UserEntity savedUser = userRepository.save(user);
 
-        // 6️⃣ Map Entity → Response (❗ QUAN TRỌNG)
+        // 6️⃣ Map Entity → Response
         return UserResponseMapper.toResponse(savedUser);
     }
 
@@ -80,17 +87,23 @@ public class UserServiceImpl implements IUserService {
 
     @Override
     public UserResponse updateUser(String userId, UpdateUserReq req) {
+
         // 1️⃣ Fetch existing user
         UserEntity existing = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(UserError.USER_NOT_FOUND));
 
         // 2️⃣ Update username if provided
-        if (req.getUsername() != null && !req.getUsername().isBlank()) {
-            // If username changed, ensure uniqueness
-            if (!req.getUsername().equals(existing.getUsername()) && userRepository.existsByUsername(req.getUsername())) {
-                throw new BusinessException(UserError.USERNAME_EXISTS);
+        if (req.getUsername() != null) {
+            String normalizedUsername = normalizeUsername(req.getUsername());
+
+            if (normalizedUsername != null && !normalizedUsername.isBlank()) {
+                // If username changed, ensure uniqueness (DÙNG normalized)
+                if (!normalizedUsername.equals(existing.getUsername())
+                        && userRepository.existsByUsername(normalizedUsername)) {
+                    throw new BusinessException(UserError.USERNAME_EXISTS);
+                }
+                existing.setUsername(normalizedUsername);
             }
-            existing.setUsername(req.getUsername());
         }
 
         // 3️⃣ Update year if provided
@@ -107,5 +120,19 @@ public class UserServiceImpl implements IUserService {
 
         // 5️⃣ Map to response
         return UserResponseMapper.toResponse(saved);
+    }
+
+    /**
+     * Normalize username:
+     * - trim 2 đầu
+     * - gộp nhiều khoảng trắng thành 1 khoảng trắng
+     * - lowercase hết
+     *
+     * Ví dụ: " Khắc      sơn      " -> "khắc sơn"
+     */
+    private String normalizeUsername(String username) {
+        if (username == null) return null;
+        String cleaned = username.trim().replaceAll("\\s+", " ");
+        return cleaned.toLowerCase(Locale.ROOT);
     }
 }

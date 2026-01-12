@@ -6,19 +6,47 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-@Configuration // khi chương trình runtime, Spring sẽ quét class này và tạo bean bên trong
-@EnableWebSecurity // bật security (Spring Security)
-@EnableMethodSecurity(prePostEnabled = true) // 🔥 dùng @PreAuthorize // @EnableGlobalMethodSecurity đã bị deprecated
+import java.util.List;
+
+@Configuration
+@EnableWebSecurity
+@EnableMethodSecurity(prePostEnabled = true)
 public class SecurityConfig {
 
+    // 🔐 Encode password
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    // 🌐 CORS config (QUAN TRỌNG)
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration config = new CorsConfiguration();
+
+        // FE của bạn (Vite)
+        config.setAllowedOrigins(List.of("http://localhost:5173"));
+
+        config.setAllowedMethods(List.of(
+                "GET", "POST", "PUT", "DELETE", "OPTIONS"
+        ));
+        config.setAllowedHeaders(List.of("*"));
+        config.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source =
+                new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+
+        return source;
     }
 
     @Bean
@@ -28,17 +56,18 @@ public class SecurityConfig {
     ) throws Exception {
 
         http
+                // ✅ BẬT CORS (PHẢI CÓ)
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+
                 // ❌ REST API không cần CSRF
                 .csrf(csrf -> csrf.disable())
 
-                // ❌ Không dùng session
+                // ❌ Không dùng session (JWT)
                 .sessionManagement(session ->
-                        session.sessionCreationPolicy(
-                                org.springframework.security.config.http.SessionCreationPolicy.STATELESS
-                        )
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
 
-                // ❌ Không dùng login form & basic auth
+                // ❌ Không dùng form login
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())
 
@@ -46,7 +75,6 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/users/**").hasRole("USER")
-
                         .anyRequest().authenticated()
                 )
 

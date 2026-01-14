@@ -12,7 +12,8 @@ import com.example.demo.domain.entities.UserEntity;
 import com.example.demo.exception.BusinessException;
 import com.example.demo.exception.user.UserError;
 import com.example.demo.infrastructure.user.mapper.UserResponseMapper;
-import com.example.demo.service.redis.RedisService;
+import com.example.demo.service.emailService.IEmailService;
+import com.example.demo.service.redisConfig.RedisService;
 import com.example.demo.service.user.IUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -28,13 +29,22 @@ public class AuthServiceImpl implements IAuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final RedisService redisService;
+    private  final IEmailService emailService;
 
     // =========================
     // 🆕 REGISTER
     // =========================
     @Override
     public UserResponse register(CreateUserReq req) {
-        return userService.createUser(req);
+        // Create user (UserService will normalize username)
+        UserResponse user = userService.createUser(req);
+
+        // Generate verification token and send verification email
+        String verifyToken = jwtService.generateVerifyToken(user.getId());
+        // Do not swallow exceptions; let them propagate so caller can handle/report them
+        emailService.sendVerifyEmail(user.getEmail(), verifyToken);
+
+        return user;
     }
 
     // =========================

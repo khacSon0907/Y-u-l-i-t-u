@@ -3,12 +3,12 @@ version: "3.8"
 services:
   redis:
     image: redis:7
-    container_name: redis-jwt
+    container_name: redisConfig-jwt
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
+    command: redisConfig-server --appendonly yes
     restart: always
 
 volumes:

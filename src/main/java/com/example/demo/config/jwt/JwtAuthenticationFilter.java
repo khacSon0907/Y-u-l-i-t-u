@@ -1,6 +1,6 @@
 package com.example.demo.config.jwt;
 
-import com.example.demo.service.redis.RedisService;
+import com.example.demo.service.redisConfig.RedisService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

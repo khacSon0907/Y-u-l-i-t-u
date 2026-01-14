@@ -1,4 +1,4 @@
-package com.example.demo.service.redis;
+package com.example.demo.service.redisConfig;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;

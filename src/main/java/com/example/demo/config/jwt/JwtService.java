@@ -62,6 +62,28 @@ public class JwtService {
     }
 
     // =========================
+    // ✅ VERIFY / OTP TOKEN
+    // =========================
+    public String generateVerifyToken(String userId) {
+        Date now = new Date();
+
+        return Jwts.builder()
+                .setId(UUID.randomUUID().toString())
+                .setSubject(userId)
+                .claim("purpose", "verify")
+                .setIssuedAt(now)
+                .setExpiration(
+                        new Date(now.getTime() + jwtProperties.getVerifyTokenExpiration())
+                )
+                .signWith(signingKey(), SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    public long getVerifyTokenExpiration() {
+        return jwtProperties.getVerifyTokenExpiration();
+    }
+
+    // =========================
     // 📤 EXTRACT
     // =========================
     public String extractUserId(String token) {

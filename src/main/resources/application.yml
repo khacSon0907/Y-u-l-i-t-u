@@ -9,7 +9,27 @@ spring:
     mongodb:
       uri: mongodb+srv://cakeyummy543:gT7zl5A6Gjqn5vwK@demodb.gjvjuqt.mongodb.net/demoDB?retryWrites=true&w=majority&appName=demoDB
 
+  mail:
+    host: smtp-relay.brevo.com
+    port: 587
+    username: 9ffd87001@smtp-brevo.com
+    password: bska1sH3jPyoZ16   # phải là key FULL, không phải ********
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+
+
 jwt:
   secret: my-super-secret-key-my-super-secret-key
   access-token-expiration: 900000        # 15 phút
   refresh-token-expiration: 604800000    # 7 ngày
+
+app:
+  backend-url: http://localhost:8080
+  mail:
+    from: "TroSmart <creatine09072004@gmail.com>"
+    verify-endpoint: /api/auth/verify-email

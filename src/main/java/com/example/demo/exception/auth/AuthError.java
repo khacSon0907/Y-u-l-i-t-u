@@ -16,6 +16,13 @@ public enum AuthError implements ErrorDescriptor {
             401,
             "AUTH.REFRESH_TOKEN_NOT_FOUND",
             "Refresh token không tồn tại hoặc đã bị thu hồi"
+    ),
+
+    INVALID_VERIFY_TOKEN(
+            "AUTH",
+            400,
+            "AUTH.INVALID_VERIFY_TOKEN",
+            "Token xác minh không hợp lệ hoặc đã hết hạn"
     );
 
     private final String type;

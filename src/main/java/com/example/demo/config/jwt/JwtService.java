@@ -99,6 +99,11 @@ public class JwtService {
         return extractClaims(token).get("roles", List.class);
     }
 
+    // Extract custom "purpose" claim (e.g., "verify")
+    public String extractPurpose(String token) {
+        return extractClaims(token).get("purpose", String.class);
+    }
+
     // =========================
     // ⏱️ TTL
     // =========================

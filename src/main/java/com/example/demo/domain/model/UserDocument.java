@@ -16,7 +16,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 public class UserDocument {
 
     @Id
-    private String id;
+    private String id;gi
 
     private String username;
 

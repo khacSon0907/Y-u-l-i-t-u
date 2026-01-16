@@ -47,6 +47,24 @@ public class AuthServiceImpl implements IAuthService {
         return user;
     }
 
+    @Override
+    public UserResponse verifyEmail(String token) {
+        // 1️⃣ Validate token
+        if (token == null || !jwtService.validateToken(token)) {
+            throw new BusinessException(AuthError.INVALID_VERIFY_TOKEN);
+        }
+
+        // 2️⃣ Ensure token purpose is 'verify'
+        String purpose = jwtService.extractPurpose(token);
+        if (purpose == null || !purpose.equals("verify")) {
+            throw new BusinessException(AuthError.INVALID_VERIFY_TOKEN);
+        }
+
+        // 3️⃣ Extract userId and perform verification
+        String userId = jwtService.extractUserId(token);
+        return userService.verifyEmail(userId);
+    }
+
     // =========================
     // 🔐 LOGIN
     // =========================

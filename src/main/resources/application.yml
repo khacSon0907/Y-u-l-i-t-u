@@ -31,5 +31,5 @@ jwt:
 app:
   backend-url: http://localhost:8080
   mail:
-    from: "TroSmart <creatine09072004@gmail.com>"
-    verify-endpoint: /api/auth/verify-email
+    from: "TroSmart <no-reply@trosmart.vn>"
+    verify-endpoint: /api/auth/verify

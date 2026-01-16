@@ -41,6 +41,23 @@ public class AuthController {
         );
     }
 
+    @GetMapping("/verify")
+    public ApiResponse<UserResponse> verifyEmail(
+            @RequestParam("token") String token,
+            HttpServletRequest request
+    ) {
+        UserResponse userResponse = authService.verifyEmail(token);
+
+        return ApiResponse.success(
+                HttpStatus.OK.value(),
+                "AUTH.VERIFY_SUCCESS",
+                "Email verified successfully",
+                userResponse,
+                request.getRequestURI(),
+                MDC.get("traceId")
+        );
+    }
+
     @PostMapping("/login")
     public ApiResponse<AuthResponse> login(
             @Valid @RequestBody LoginReq req,

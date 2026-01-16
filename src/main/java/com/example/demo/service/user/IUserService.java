@@ -21,4 +21,7 @@ public interface IUserService {
     // Update user by id (only username and year)
     UserResponse updateUser(String userId, UpdateUserReq req);
 
+    // Verify user's email (set emailVerified = true)
+    UserResponse verifyEmail(String userId);
+
 }

@@ -21,6 +21,7 @@ public class UserResponseMapper {
                 .email(entity.getEmail())
                 .year(entity.getYear())
                 .role(entity.getRole().name())
+                .emailVerified(entity.isEmailVerified())
                 .build();
     }
 }

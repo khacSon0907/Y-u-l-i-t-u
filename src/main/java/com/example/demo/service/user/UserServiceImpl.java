@@ -58,6 +58,7 @@ public class UserServiceImpl implements IUserService {
                 .password(passwordEncoder.encode(req.getPassword()))
                 .year(req.getYear())
                 .role(Role.USER)
+                .emailVerified(false)
                 .build();
 
         // 5️⃣ Save
@@ -120,6 +121,19 @@ public class UserServiceImpl implements IUserService {
 
         // 5️⃣ Map to response
         return UserResponseMapper.toResponse(saved);
+    }
+
+    @Override
+    public UserResponse verifyEmail(String userId) {
+        UserEntity existing = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(UserError.USER_NOT_FOUND));
+
+        if (!existing.isEmailVerified()) {
+            existing.setEmailVerified(true);
+            existing = userRepository.save(existing);
+        }
+
+        return UserResponseMapper.toResponse(existing);
     }
 
     /**

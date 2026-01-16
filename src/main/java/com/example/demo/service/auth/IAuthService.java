@@ -17,4 +17,6 @@ public interface IAuthService {
     void logout(String accessToken);
 
     AuthResponse refreshToken(RefreshTokenReq req);
+
+    UserResponse verifyEmail(String token);
 }

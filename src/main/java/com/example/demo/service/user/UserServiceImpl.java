@@ -30,17 +30,23 @@ public class UserServiceImpl implements IUserService {
 
         String normalizedUsername = normalizeUsername(req.getUsername());
 
-        // Optional: nếu bạn có lỗi riêng cho username invalid thì dùng, không thì bỏ block này
         if (normalizedUsername == null || normalizedUsername.isBlank()) {
-            throw new BusinessException(UserError.USERNAME_INVALID); // nếu chưa có thì đổi sang lỗi khác bạn đang dùng
+            throw new BusinessException(UserError.USERNAME_INVALID);
         }
-
-        // 1️⃣ Check email
-        if (userRepository.existsByEmail(req.getEmail())) {
-            throw new BusinessException(UserError.EMAIL_EXISTS);
+        // 1️⃣ Check email tồn tại hay chưa
+        Optional<UserEntity> existingByEmail = userRepository.findByEmail(req.getEmail());
+        if (existingByEmail.isPresent()) {
+            UserEntity existingUser = existingByEmail.get();
+            // ✅ Email đã verify → không cho đăng ký
+            if (existingUser.isEmailVerified()) {
+                throw new BusinessException(UserError.EMAIL_EXISTS);
+            }
+            // ⚠️ Email chưa verify → resend email xác nhận
+            // authService.resendVerifyEmail(existingUser);
+            // 👆 dòng này bạn gọi sang AuthService / EmailService
+            throw new BusinessException(UserError.EMAIL_NOT_VERIFIED);
         }
-
-        // 2️⃣ Check username (DÙNG normalized)
+        // 2️⃣ Check username (đã normalize)
         if (userRepository.existsByUsername(normalizedUsername)) {
             throw new BusinessException(UserError.USERNAME_EXISTS);
         }
@@ -51,7 +57,7 @@ public class UserServiceImpl implements IUserService {
             throw new BusinessException(UserError.UNDER_AGE);
         }
 
-        // 4️⃣ Encode password + Save (DÙNG normalized)
+        // 4️⃣ Tạo user mới
         UserEntity user = UserEntity.builder()
                 .username(normalizedUsername)
                 .email(req.getEmail())
@@ -61,10 +67,11 @@ public class UserServiceImpl implements IUserService {
                 .emailVerified(false)
                 .build();
 
-        // 5️⃣ Save
         UserEntity savedUser = userRepository.save(user);
 
-        // 6️⃣ Map Entity → Response
+        // 5️⃣ Gửi email verify lần đầu
+        // authService.sendVerifyEmail(savedUser);
+
         return UserResponseMapper.toResponse(savedUser);
     }
 

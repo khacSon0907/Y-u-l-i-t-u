@@ -1,6 +1,4 @@
 package com.example.demo.controller.auth;
-
-
 import com.example.demo.domain.dto.req.CreateUserReq;
 import com.example.demo.domain.dto.req.LoginReq;
 import com.example.demo.domain.dto.req.RefreshTokenReq;
@@ -35,23 +33,6 @@ public class AuthController {
                 HttpStatus.CREATED.value(),
                 "AUTH.REGISTER_SUCCESS",
                 "Register successfully",
-                userResponse,
-                request.getRequestURI(),
-                MDC.get("traceId")
-        );
-    }
-
-    @GetMapping("/verify")
-    public ApiResponse<UserResponse> verifyEmail(
-            @RequestParam("token") String token,
-            HttpServletRequest request
-    ) {
-        UserResponse userResponse = authService.verifyEmail(token);
-
-        return ApiResponse.success(
-                HttpStatus.OK.value(),
-                "AUTH.VERIFY_SUCCESS",
-                "Email verified successfully",
                 userResponse,
                 request.getRequestURI(),
                 MDC.get("traceId")

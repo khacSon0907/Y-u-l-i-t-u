@@ -18,7 +18,7 @@ public class UserMapper {
                 .email(document.getEmail())
                 .password(document.getPassword())
                 .year(document.getYear())
-                // ⭐ fallback cho user cũ
+                .emailVerified(document.isEmailVerified())
                 .role(Optional.ofNullable(document.getRole())
                         .orElse(Role.USER))
                 .build();
@@ -34,6 +34,7 @@ public class UserMapper {
                 .email(entity.getEmail())
                 .password(entity.getPassword())
                 .year(entity.getYear())
+                .emailVerified(entity.isEmailVerified())
                 .role(entity.getRole())
                 .build();
     }

@@ -16,15 +16,12 @@ import org.springframework.data.mongodb.core.mapping.Document;
 public class UserDocument {
 
     @Id
-    private String id;gi
-
+    private String id;
     private String username;
-
     private String email;
-
     private String password;
-
     private int year;
-
     private Role role;
+    private boolean emailVerified;
+
 }

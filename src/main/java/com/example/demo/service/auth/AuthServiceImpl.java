@@ -36,34 +36,59 @@ public class AuthServiceImpl implements IAuthService {
     // =========================
     @Override
     public UserResponse register(CreateUserReq req) {
-        // Create user (UserService will normalize username)
+
+        // 1️⃣ Create user
         UserResponse user = userService.createUser(req);
 
-        // Generate verification token and send verification email
+        // 2️⃣ Generate verify token
         String verifyToken = jwtService.generateVerifyToken(user.getId());
-        // Do not swallow exceptions; let them propagate so caller can handle/report them
+
+        // 3️⃣ Lưu token vào Redis (TTL = verify token expiration)
+        redisService.saveVerifyEmailToken(
+                user.getId(),
+                verifyToken,
+                jwtService.getVerifyTokenExpiration()
+        );
+
+        // 4️⃣ Gửi email
         emailService.sendVerifyEmail(user.getEmail(), verifyToken);
 
         return user;
     }
 
+
     @Override
     public UserResponse verifyEmail(String token) {
-        // 1️⃣ Validate token
+
+        // 1️⃣ Validate JWT
         if (token == null || !jwtService.validateToken(token)) {
             throw new BusinessException(AuthError.INVALID_VERIFY_TOKEN);
         }
 
-        // 2️⃣ Ensure token purpose is 'verify'
+        // 2️⃣ Check purpose
         String purpose = jwtService.extractPurpose(token);
-        if (purpose == null || !purpose.equals("verify")) {
+        if (!"verify".equals(purpose)) {
             throw new BusinessException(AuthError.INVALID_VERIFY_TOKEN);
         }
 
-        // 3️⃣ Extract userId and perform verification
+        // 3️⃣ Extract userId
         String userId = jwtService.extractUserId(token);
-        return userService.verifyEmail(userId);
+
+        // 4️⃣ Check token trong Redis
+        String storedToken = redisService.getVerifyEmailToken(userId);
+        if (storedToken == null || !storedToken.equals(token)) {
+            throw new BusinessException(AuthError.INVALID_VERIFY_TOKEN);
+        }
+
+        // 5️⃣ Verify email trong DB
+        UserResponse response = userService.verifyEmail(userId);
+
+        // 6️⃣ Xóa token khỏi Redis (chống reuse)
+        redisService.deleteVerifyEmailToken(userId);
+
+        return response;
     }
+
 
     // =========================
     // 🔐 LOGIN

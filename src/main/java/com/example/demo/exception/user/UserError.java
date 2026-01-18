@@ -45,7 +45,14 @@ public enum UserError implements ErrorDescriptor {
             404,
             "AUTH.USER_NOT_FOUND",
             "Không tìm thấy người dùng"
+    ),
+    EMAIL_NOT_VERIFIED(
+        "BUSINESS",
+                409,
+                "USER.EMAIL_NOT_VERIFIED",
+                "Email đã đăng ký nhưng chưa xác nhận"
     );
+
 
     private final String type;
     private final int httpStatus;

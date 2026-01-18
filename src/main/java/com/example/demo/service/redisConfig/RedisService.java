@@ -47,4 +47,23 @@ public class RedisService {
     public void deleteRefreshToken(String userId) {
         redisTemplate.delete("refresh:" + userId);
     }
+
+    // =========================
+    // ✉️ VERIFY EMAIL TOKEN
+    // =========================
+    public void saveVerifyEmailToken(String userId, String token, long ttlMillis) {
+        redisTemplate.opsForValue().set(
+                "verify:email:" + userId,
+                token,
+                Duration.ofMillis(ttlMillis)
+        );
+    }
+
+    public String getVerifyEmailToken(String userId) {
+        return redisTemplate.opsForValue().get("verify:email:" + userId);
+    }
+
+    public void deleteVerifyEmailToken(String userId) {
+        redisTemplate.delete("verify:email:" + userId);
+    }
 }

@@ -29,35 +29,32 @@ public class UserServiceImpl implements IUserService {
     public UserResponse createUser(CreateUserReq req) {
 
         String normalizedUsername = normalizeUsername(req.getUsername());
-
         if (normalizedUsername == null || normalizedUsername.isBlank()) {
             throw new BusinessException(UserError.USERNAME_INVALID);
         }
-        // 1️⃣ Check email tồn tại hay chưa
+
         Optional<UserEntity> existingByEmail = userRepository.findByEmail(req.getEmail());
         if (existingByEmail.isPresent()) {
             UserEntity existingUser = existingByEmail.get();
-            // ✅ Email đã verify → không cho đăng ký
+
+            // ✅ Đã verify → chặn
             if (existingUser.isEmailVerified()) {
                 throw new BusinessException(UserError.EMAIL_EXISTS);
             }
-            // ⚠️ Email chưa verify → resend email xác nhận
-            // authService.resendVerifyEmail(existingUser);
-            // 👆 dòng này bạn gọi sang AuthService / EmailService
+
+            // ⚠️ Chưa verify → để AuthService xử lý resend
             throw new BusinessException(UserError.EMAIL_NOT_VERIFIED);
         }
-        // 2️⃣ Check username (đã normalize)
+
         if (userRepository.existsByUsername(normalizedUsername)) {
             throw new BusinessException(UserError.USERNAME_EXISTS);
         }
 
-        // 3️⃣ Check tuổi
         int age = Year.now().getValue() - req.getYear();
         if (age < 18) {
             throw new BusinessException(UserError.UNDER_AGE);
         }
 
-        // 4️⃣ Tạo user mới
         UserEntity user = UserEntity.builder()
                 .username(normalizedUsername)
                 .email(req.getEmail())
@@ -67,13 +64,9 @@ public class UserServiceImpl implements IUserService {
                 .emailVerified(false)
                 .build();
 
-        UserEntity savedUser = userRepository.save(user);
-
-        // 5️⃣ Gửi email verify lần đầu
-        // authService.sendVerifyEmail(savedUser);
-
-        return UserResponseMapper.toResponse(savedUser);
+        return UserResponseMapper.toResponse(userRepository.save(user));
     }
+
 
     @Override
     public List<UserResponse> getAllUsers() {

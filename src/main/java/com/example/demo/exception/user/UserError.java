@@ -25,6 +25,13 @@ public enum UserError implements ErrorDescriptor {
             "Username không hợp lệ"
     ),
 
+    INVALID_EMAIL(
+            "BUSINESS",
+            400,
+            "USER.INVALID_EMAIL",
+            "Email không hợp lệ"
+    ),
+
     UNDER_AGE(
             "BUSINESS",
             400,
@@ -46,11 +53,12 @@ public enum UserError implements ErrorDescriptor {
             "AUTH.USER_NOT_FOUND",
             "Không tìm thấy người dùng"
     ),
+
     EMAIL_NOT_VERIFIED(
         "BUSINESS",
-                409,
+                403,
                 "USER.EMAIL_NOT_VERIFIED",
-                "Email đã đăng ký nhưng chưa xác nhận"
+                "Email chưa được xác nhận. Vui lòng kiểm tra email."
     );
 
 

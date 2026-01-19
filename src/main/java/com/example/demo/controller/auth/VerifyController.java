@@ -1,6 +1,6 @@
 package com.example.demo.controller.auth;
 
-import com.example.demo.service.auth.IAuthService;
+import com.example.demo.service.authService.IAuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 @Controller
-@RequestMapping("/api/auth")
+@RequestMapping("/api/authService")
 @RequiredArgsConstructor
 public class VerifyController {
 

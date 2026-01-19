@@ -1,4 +1,4 @@
-package com.example.demo.service.auth;
+package com.example.demo.service.authService;
 
 import com.example.demo.exception.auth.AuthError;
 import com.example.demo.config.jwt.JwtService;
@@ -6,6 +6,7 @@ import com.example.demo.domain.dto.req.CreateUserReq;
 import com.example.demo.domain.dto.req.LoginReq;
 import com.example.demo.domain.dto.req.RefreshTokenReq;
 import com.example.demo.domain.dto.req.UpdateUserReq;
+import com.example.demo.domain.dto.req.ResendEmailReq;
 import com.example.demo.domain.dto.res.AuthResponse;
 import com.example.demo.domain.dto.res.UserResponse;
 import com.example.demo.domain.entities.UserEntity;
@@ -37,23 +38,29 @@ public class AuthServiceImpl implements IAuthService {
     @Override
     public UserResponse register(CreateUserReq req) {
 
-        // 1️⃣ Create user
-        UserResponse user = userService.createUser(req);
+        try {
+            // 1️⃣ Thử tạo user mới
+            UserResponse user = userService.createUser(req);
 
-        // 2️⃣ Generate verify token
-        String verifyToken = jwtService.generateVerifyToken(user.getId());
+            // 👉 User mới → gửi verify lần đầu
+            sendVerifyEmail(user.getId(), user.getEmail());
+            return user;
 
-        // 3️⃣ Lưu token vào Redis (TTL = verify token expiration)
-        redisService.saveVerifyEmailToken(
-                user.getId(),
-                verifyToken,
-                jwtService.getVerifyTokenExpiration()
-        );
+        } catch (BusinessException ex) {
 
-        // 4️⃣ Gửi email
-        emailService.sendVerifyEmail(user.getEmail(), verifyToken);
+            // 2️⃣ Nếu email chưa verify → xử lý resend
+            if (ex.getError() == UserError.EMAIL_NOT_VERIFIED) {
 
-        return user;
+                UserEntity user = userService.getByEmail(req.getEmail())
+                        .orElseThrow(() -> new BusinessException(UserError.USER_NOT_FOUND));
+
+                handleResendVerifyEmail(user);
+
+                throw ex; // vẫn trả EMAIL_NOT_VERIFIED cho FE
+            }
+
+            throw ex;
+        }
     }
 
 
@@ -211,4 +218,55 @@ public class AuthServiceImpl implements IAuthService {
     public UserResponse updateUser(String userId, UpdateUserReq req) {
         return userService.updateUser(userId, req);
     }
+    private void handleResendVerifyEmail(UserEntity user) {
+
+        String userId = user.getId();
+
+        // 🔍 Check token cũ trong Redis
+        String existingToken = redisService.getVerifyEmailToken(userId);
+
+        if (existingToken != null) {
+            // ✅ Token còn hạn → KHÔNG gửi lại
+            return;
+        }
+
+        // 🔁 Token hết hạn → tạo token mới
+        sendVerifyEmail(userId, user.getEmail());
+    }
+
+    private void sendVerifyEmail(String userId, String email) {
+
+        String verifyToken = jwtService.generateVerifyToken(userId);
+
+        redisService.saveVerifyEmailToken(
+                userId,
+                verifyToken,
+                jwtService.getVerifyTokenExpiration()
+        );
+
+        emailService.sendVerifyEmail(email, verifyToken);
+    }
+
+    @Override
+    public UserResponse resendEmail(ResendEmailReq req) {
+        if (req == null || req.getEmail() == null) {
+            throw new BusinessException(UserError.INVALID_EMAIL);
+        }
+
+        String email = req.getEmail().trim();
+
+        UserEntity user = userService.getByEmail(email)
+                .orElseThrow(() -> new BusinessException(UserError.USER_NOT_FOUND));
+
+        if (user.isEmailVerified()) {
+            // already verified -> return current user response
+            return UserResponseMapper.toResponse(user);
+        }
+
+        // reuse existing resend handling
+        handleResendVerifyEmail(user);
+
+        return UserResponseMapper.toResponse(user);
+    }
+
 }

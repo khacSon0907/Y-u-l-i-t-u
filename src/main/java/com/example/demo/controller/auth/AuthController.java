@@ -3,9 +3,10 @@ import com.example.demo.domain.dto.req.CreateUserReq;
 import com.example.demo.domain.dto.req.LoginReq;
 import com.example.demo.domain.dto.req.RefreshTokenReq;
 import com.example.demo.domain.dto.req.UpdateUserReq;
+import com.example.demo.domain.dto.req.ResendEmailReq;
 import com.example.demo.domain.dto.res.AuthResponse;
 import com.example.demo.domain.dto.res.UserResponse;
-import com.example.demo.service.auth.IAuthService;
+import com.example.demo.service.authService.IAuthService;
 import com.example.demo.share.response.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -16,7 +17,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/auth")
+@RequestMapping("/api/authService")
 public class AuthController {
 
     private final IAuthService authService;
@@ -110,6 +111,23 @@ public class AuthController {
                 "AUTH.LOGOUT_SUCCESS",
                 "Logout successfully",
                 null,
+                request.getRequestURI(),
+                MDC.get("traceId")
+        );
+    }
+
+    @PostMapping("/resend-email")
+    public ApiResponse<UserResponse> resendEmail(
+            @Valid @RequestBody ResendEmailReq req,
+            HttpServletRequest request
+    ) {
+        UserResponse userResponse = authService.resendEmail(req);
+
+        return ApiResponse.success(
+                HttpStatus.OK.value(),
+                "AUTH.RESEND_EMAIL_SENT",
+                "Resend verification email successfully",
+                userResponse,
                 request.getRequestURI(),
                 MDC.get("traceId")
         );

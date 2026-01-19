@@ -1,9 +1,10 @@
-package com.example.demo.service.auth;
+package com.example.demo.service.authService;
 
 import com.example.demo.domain.dto.req.CreateUserReq;
 import com.example.demo.domain.dto.req.LoginReq;
 import com.example.demo.domain.dto.req.RefreshTokenReq;
 import com.example.demo.domain.dto.req.UpdateUserReq;
+import com.example.demo.domain.dto.req.ResendEmailReq;
 import com.example.demo.domain.dto.res.AuthResponse;
 import com.example.demo.domain.dto.res.UserResponse;
 
@@ -19,4 +20,7 @@ public interface IAuthService {
     AuthResponse refreshToken(RefreshTokenReq req);
 
     UserResponse verifyEmail(String token);
+
+    // Resend verification email for given email
+    UserResponse resendEmail(ResendEmailReq req);
 }

@@ -6,6 +6,8 @@ import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -123,7 +125,45 @@ public class GlobalExceptionHandler {
     }
 
     /* =====================================================
-     * 5. STATIC RESOURCE (favicon, etc.)
+     * 5. AUTHENTICATION / AUTHORIZATION
+     *    Map Spring Security exceptions to proper HTTP codes
+     * ===================================================== */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccessDenied(
+            AccessDeniedException ex,
+            HttpServletRequest req
+    ) {
+        log.warn("[ACCESS_DENIED] path={}, message={}", req.getRequestURI(), ex.getMessage());
+
+        return buildErrorResponse(
+                CommonError.FORBIDDEN.type(),
+                CommonError.FORBIDDEN.httpStatus(),
+                CommonError.FORBIDDEN.code(),
+                CommonError.FORBIDDEN.defaultMessage(),
+                null,
+                req
+        );
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ErrorResponse> handleAuthenticationException(
+            AuthenticationException ex,
+            HttpServletRequest req
+    ) {
+        log.warn("[AUTHENTICATION_ERROR] path={}, message={}", req.getRequestURI(), ex.getMessage());
+
+        return buildErrorResponse(
+                CommonError.UNAUTHORIZED.type(),
+                CommonError.UNAUTHORIZED.httpStatus(),
+                CommonError.UNAUTHORIZED.code(),
+                CommonError.UNAUTHORIZED.defaultMessage(),
+                null,
+                req
+        );
+    }
+
+    /* =====================================================
+     * 6. STATIC RESOURCE (favicon, etc.)
      * ===================================================== */
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<Void> handleNoResourceFound() {
@@ -132,7 +172,7 @@ public class GlobalExceptionHandler {
     }
 
     /* =====================================================
-     * 6. FALLBACK – SYSTEM ERROR
+     * 7. FALLBACK – SYSTEM ERROR
      * ===================================================== */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleException(

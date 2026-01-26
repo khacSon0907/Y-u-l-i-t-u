@@ -18,6 +18,5 @@ public class UserEntity {
     private String password ;
     private int year ;
     private Role role; // ROLE_USER / ROLE_ADMIN
-
     private boolean emailVerified;
 }

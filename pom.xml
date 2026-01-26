@@ -27,6 +27,14 @@
 
 	<dependencies>
 
+
+		<!-- 🌿 Thymeleaf (render HTML) -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-thymeleaf</artifactId>
+		</dependency>
+
+
 		<!-- 📘 Swagger / OpenAPI -->
 		<dependency>
 			<groupId>org.springdoc</groupId>
@@ -101,6 +109,11 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>com.fasterxml.jackson.datatype</groupId>
+			<artifactId>jackson-datatype-jsr310</artifactId>
 		</dependency>
 
 	</dependencies>

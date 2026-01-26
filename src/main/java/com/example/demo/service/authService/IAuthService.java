@@ -1,21 +1,18 @@
 package com.example.demo.service.authService;
 
-import com.example.demo.domain.dto.req.CreateUserReq;
-import com.example.demo.domain.dto.req.LoginReq;
-import com.example.demo.domain.dto.req.RefreshTokenReq;
-import com.example.demo.domain.dto.req.UpdateUserReq;
-import com.example.demo.domain.dto.req.ResendEmailReq;
+import com.example.demo.domain.dto.req.*;
 import com.example.demo.domain.dto.res.AuthResponse;
 import com.example.demo.domain.dto.res.UserResponse;
 
 public interface IAuthService {
 
+
     AuthResponse login(LoginReq req);
     UserResponse register(CreateUserReq req);
 
-    UserResponse updateUser(String userId, UpdateUserReq req);
-
     void logout(String accessToken);
+
+    void forgotPassword(ForgotPasswordReq req);
 
     AuthResponse refreshToken(RefreshTokenReq req);
 

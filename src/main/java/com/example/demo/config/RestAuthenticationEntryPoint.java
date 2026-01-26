@@ -3,9 +3,9 @@ package com.example.demo.config;
 import com.example.demo.exception.CommonError;
 import com.example.demo.share.error.ErrorResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.stereotype.Component;
@@ -13,16 +13,22 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 
 @Component
+@RequiredArgsConstructor
 public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper; // ✅ inject từ Spring
 
     @Override
-    public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException authException) throws IOException, ServletException {
+    public void commence(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            AuthenticationException authException
+    ) throws IOException {
+
         response.setStatus(CommonError.UNAUTHORIZED.httpStatus());
         response.setContentType("application/json");
 
-        var payload = ErrorResponse.of(
+        ErrorResponse payload = ErrorResponse.of(
                 CommonError.UNAUTHORIZED.type(),
                 CommonError.UNAUTHORIZED.httpStatus(),
                 CommonError.UNAUTHORIZED.code(),
@@ -35,4 +41,3 @@ public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
         objectMapper.writeValue(response.getOutputStream(), payload);
     }
 }
-

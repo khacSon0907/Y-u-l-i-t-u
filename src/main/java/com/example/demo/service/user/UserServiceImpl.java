@@ -1,5 +1,6 @@
 package com.example.demo.service.user;
 
+import com.example.demo.config.SecurityConfig;
 import com.example.demo.domain.dto.req.CreateUserReq;
 import com.example.demo.domain.dto.req.UpdateUserReq;
 import com.example.demo.domain.dto.res.UserResponse;
@@ -24,6 +25,7 @@ public class UserServiceImpl implements IUserService {
 
     private final IUserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+
 
     @Override
     public UserResponse createUser(CreateUserReq req) {

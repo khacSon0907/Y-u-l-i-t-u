@@ -1,27 +1,24 @@
 package com.example.demo.service.authService;
 
+import com.example.demo.domain.dto.req.*;
 import com.example.demo.exception.auth.AuthError;
 import com.example.demo.config.jwt.JwtService;
-import com.example.demo.domain.dto.req.CreateUserReq;
-import com.example.demo.domain.dto.req.LoginReq;
-import com.example.demo.domain.dto.req.RefreshTokenReq;
-import com.example.demo.domain.dto.req.UpdateUserReq;
-import com.example.demo.domain.dto.req.ResendEmailReq;
 import com.example.demo.domain.dto.res.AuthResponse;
 import com.example.demo.domain.dto.res.UserResponse;
 import com.example.demo.domain.entities.UserEntity;
 import com.example.demo.exception.BusinessException;
 import com.example.demo.exception.user.UserError;
 import com.example.demo.infrastructure.user.mapper.UserResponseMapper;
-import com.example.demo.service.emailService.IEmailService;
+import com.example.demo.service.emailService.AsyncEmailService;  // 👈 THAY ĐỔI
 import com.example.demo.service.redisConfig.RedisService;
 import com.example.demo.service.user.IUserService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-
+@Slf4j  // 👈 THÊM
 @Service
 @RequiredArgsConstructor
 public class AuthServiceImpl implements IAuthService {
@@ -30,7 +27,7 @@ public class AuthServiceImpl implements IAuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final RedisService redisService;
-    private  final IEmailService emailService;
+    private final AsyncEmailService asyncEmailService;  // 👈 THAY ĐỔI: IEmailService → AsyncEmailService
 
     // =========================
     // 🆕 REGISTER
@@ -38,17 +35,32 @@ public class AuthServiceImpl implements IAuthService {
     @Override
     public UserResponse register(CreateUserReq req) {
 
+        log.info("📝 Register request for email: {}", req.getEmail());
+        long startTime = System.currentTimeMillis();
+
         try {
-            // 1️⃣ Thử tạo user mới
+            // 1️⃣ Tạo user mới
             UserResponse user = userService.createUser(req);
 
-            // 👉 User mới → gửi verify lần đầu
-            sendVerifyEmail(user.getId(), user.getEmail());
+            // 2️⃣ Generate token & save Redis (SYNC - nhanh)
+            String verifyToken = jwtService.generateVerifyToken(user.getId());
+            redisService.saveVerifyEmailToken(
+                    user.getId(),
+                    verifyToken,
+                    jwtService.getVerifyTokenExpiration()
+            );
+
+            // 3️⃣ Gửi email ASYNC - KHÔNG CHỜ ĐỢI 🚀
+            asyncEmailService.sendVerifyEmailAsync(user.getEmail(), verifyToken);
+
+            long duration = System.currentTimeMillis() - startTime;
+            log.info("✅ User registered successfully: {} (API took {}ms)", user.getId(), duration);
+
             return user;
 
         } catch (BusinessException ex) {
 
-            // 2️⃣ Nếu email chưa verify → xử lý resend
+            // Nếu email chưa verify → xử lý resend
             if (ex.getError() == UserError.EMAIL_NOT_VERIFIED) {
 
                 UserEntity user = userService.getByEmail(req.getEmail())
@@ -56,185 +68,90 @@ public class AuthServiceImpl implements IAuthService {
 
                 handleResendVerifyEmail(user);
 
-                throw ex; // vẫn trả EMAIL_NOT_VERIFIED cho FE
+                throw ex;
             }
 
             throw ex;
         }
     }
 
-
+    // =========================
+    // 🔁 RESEND EMAIL
+    // =========================
     @Override
-    public UserResponse verifyEmail(String token) {
+    public UserResponse resendEmail(ResendEmailReq req) {
 
-        // 1️⃣ Validate JWT
-        if (token == null || !jwtService.validateToken(token)) {
-            throw new BusinessException(AuthError.INVALID_VERIFY_TOKEN);
+        if (req == null || req.getEmail() == null) {
+            throw new BusinessException(UserError.INVALID_EMAIL);
         }
 
-        // 2️⃣ Check purpose
-        String purpose = jwtService.extractPurpose(token);
-        if (!"verify".equals(purpose)) {
-            throw new BusinessException(AuthError.INVALID_VERIFY_TOKEN);
+        String email = req.getEmail().trim();
+        log.info("📧 Resend email request for: {}", email);
+
+        UserEntity user = userService.getByEmail(email)
+                .orElseThrow(() -> new BusinessException(UserError.USER_NOT_FOUND));
+
+        if (user.isEmailVerified()) {
+            log.info("⚠️ Email already verified: {}", email);
+            return UserResponseMapper.toResponse(user);
         }
 
-        // 3️⃣ Extract userId
-        String userId = jwtService.extractUserId(token);
+        handleResendVerifyEmail(user);
 
-        // 4️⃣ Check token trong Redis
-        String storedToken = redisService.getVerifyEmailToken(userId);
-        if (storedToken == null || !storedToken.equals(token)) {
-            throw new BusinessException(AuthError.INVALID_VERIFY_TOKEN);
-        }
-
-        // 5️⃣ Verify email trong DB
-        UserResponse response = userService.verifyEmail(userId);
-
-        // 6️⃣ Xóa token khỏi Redis (chống reuse)
-        redisService.deleteVerifyEmailToken(userId);
-
-        return response;
+        return UserResponseMapper.toResponse(user);
     }
 
-
     // =========================
-    // 🔐 LOGIN
+    // 🔐 FORGOT PASSWORD
     // =========================
     @Override
-    public AuthResponse login(LoginReq req) {
+    public void forgotPassword(ForgotPasswordReq req) {
 
-        // 1️⃣ Tìm user theo email
-        UserEntity user = userService.getByEmail(req.getEmail())
-                .orElseThrow(() ->
-                        new BusinessException(UserError.INVALID_CREDENTIALS)
-                );
-
-        // 2️⃣ Check password
-        if (!passwordEncoder.matches(req.getPassword(), user.getPassword())) {
-            throw new BusinessException(UserError.INVALID_CREDENTIALS);
+        if (req == null || req.getEmail() == null || req.getEmail().isBlank()) {
+            throw new BusinessException(UserError.INVALID_EMAIL);
         }
 
-        String userId = user.getId();
+        String email = req.getEmail().trim();
+        log.info("🔐 Forgot password request for: {}", email);
 
-        // 3️⃣ Role → ROLE_*
-        List<String> roles = List.of(
-                "ROLE_" + user.getRole().name()
+        // 1️⃣ Check user tồn tại
+        UserEntity user = userService.getByEmail(email)
+                .orElseThrow(() -> new BusinessException(UserError.USER_NOT_FOUND));
+
+        // 2️⃣ Sinh OTP
+        String otp = generateOtp();
+
+        // 3️⃣ Lưu OTP vào Redis (5 phút)
+        redisService.saveForgotPasswordOtp(
+                email,
+                otp,
+                5 * 60 * 1000 // 5 phút
         );
 
-        // 4️⃣ Generate tokens
-        String accessToken = jwtService.generateAccessToken(userId, roles);
-        String refreshToken = jwtService.generateRefreshToken(userId);
+        // 4️⃣ Gửi email OTP - ASYNC 🚀
+        asyncEmailService.sendForgotPasswordOtpAsync(email, otp);
 
-        // 5️⃣ Lưu refresh token vào Redis
-        redisService.saveRefreshToken(
-                userId,
-                refreshToken,
-                jwtService.getRefreshTokenExpiration()
-        );
-
-        // 6️⃣ Response
-        return AuthResponse.builder()
-                .accessToken(accessToken)
-                .refreshToken(refreshToken)
-                .user(UserResponseMapper.toResponse(user))
-                .build();
+        log.info("✅ Forgot password OTP generated for: {}", email);
     }
 
     // =========================
-    // 🚪 LOGOUT (CHUẨN)
-    // =========================
-    @Override
-    public void logout(String accessToken) {
-
-        // 1️⃣ Extract jti + ttl
-        String jti = jwtService.extractJti(accessToken);
-        long ttlMillis = jwtService.getRemainingTime(accessToken);
-
-        // 2️⃣ Blacklist access token
-        redisService.blacklistAccessToken(jti, ttlMillis);
-
-        // 3️⃣ Xóa refresh token
-        String userId = jwtService.extractUserId(accessToken);
-        redisService.deleteRefreshToken(userId);
-    }
-
-    // =========================
-    // 🔁 REFRESH TOKEN
+    // 📧 PRIVATE METHODS
     // =========================
 
-    @Override
-    public AuthResponse refreshToken(RefreshTokenReq req) {
-
-        String refreshToken = req.getRefreshToken();
-
-        // 1️⃣ Validate refresh token
-        if (!jwtService.validateToken(refreshToken)) {
-            throw new BusinessException(AuthError.INVALID_REFRESH_TOKEN);
-        }
-
-        // 2️⃣ Extract userId
-        String userId = jwtService.extractUserId(refreshToken);
-
-        // 3️⃣ Check refresh token trong Redis
-        String storedRefreshToken = redisService.getRefreshToken(userId);
-        if (storedRefreshToken == null || !storedRefreshToken.equals(refreshToken)) {
-            throw new BusinessException(AuthError.REFRESH_TOKEN_NOT_FOUND);
-        }
-
-        // 4️⃣ Lấy user
-        UserEntity user = userService.getUserById(userId)
-                .orElseThrow(() ->
-                        new BusinessException(UserError.USER_NOT_FOUND)
-                );
-
-        // 5️⃣ Roles
-        List<String> roles = List.of(
-                "ROLE_" + user.getRole().name()
-        );
-
-        // 6️⃣ Generate token mới
-        String newAccessToken = jwtService.generateAccessToken(userId, roles);
-        String newRefreshToken = jwtService.generateRefreshToken(userId);
-
-        // 7️⃣ Update Redis
-        redisService.saveRefreshToken(
-                userId,
-                newRefreshToken,
-                jwtService.getRefreshTokenExpiration()
-        );
-
-        // 8️⃣ Response
-        return AuthResponse.builder()
-                .accessToken(newAccessToken)
-                .refreshToken(newRefreshToken)
-                .user(UserResponseMapper.toResponse(user))
-                .build();
-    }
-
-    // =========================
-    // ✏️ UPDATE USER
-    // =========================
-    @Override
-    public UserResponse updateUser(String userId, UpdateUserReq req) {
-        return userService.updateUser(userId, req);
-    }
     private void handleResendVerifyEmail(UserEntity user) {
 
         String userId = user.getId();
 
-        // 🔍 Check token cũ trong Redis
+        // Check token cũ trong Redis
         String existingToken = redisService.getVerifyEmailToken(userId);
 
         if (existingToken != null) {
-            // ✅ Token còn hạn → KHÔNG gửi lại
+            log.info("⏳ Token still valid for user: {}, skipping resend", userId);
             return;
         }
 
-        // 🔁 Token hết hạn → tạo token mới
-        sendVerifyEmail(userId, user.getEmail());
-    }
-
-    private void sendVerifyEmail(String userId, String email) {
+        // Token hết hạn → tạo token mới
+        log.info("🔁 Generating new verify token for user: {}", userId);
 
         String verifyToken = jwtService.generateVerifyToken(userId);
 
@@ -244,29 +161,150 @@ public class AuthServiceImpl implements IAuthService {
                 jwtService.getVerifyTokenExpiration()
         );
 
-        emailService.sendVerifyEmail(email, verifyToken);
+        // Gửi email ASYNC 🚀
+        asyncEmailService.sendVerifyEmailAsync(user.getEmail(), verifyToken);
     }
 
+    private String generateOtp() {
+        return String.valueOf((int)(Math.random() * 900000) + 100000);
+    }
+
+    // =========================
+    // 🔐 VERIFY EMAIL (giữ nguyên)
+    // =========================
     @Override
-    public UserResponse resendEmail(ResendEmailReq req) {
-        if (req == null || req.getEmail() == null) {
-            throw new BusinessException(UserError.INVALID_EMAIL);
+    public UserResponse verifyEmail(String token) {
+
+        if (token == null || !jwtService.validateToken(token)) {
+            throw new BusinessException(AuthError.INVALID_VERIFY_TOKEN);
         }
 
-        String email = req.getEmail().trim();
-
-        UserEntity user = userService.getByEmail(email)
-                .orElseThrow(() -> new BusinessException(UserError.USER_NOT_FOUND));
-
-        if (user.isEmailVerified()) {
-            // already verified -> return current user response
-            return UserResponseMapper.toResponse(user);
+        String purpose = jwtService.extractPurpose(token);
+        if (!"verify".equals(purpose)) {
+            throw new BusinessException(AuthError.INVALID_VERIFY_TOKEN);
         }
 
-        // reuse existing resend handling
-        handleResendVerifyEmail(user);
+        String userId = jwtService.extractUserId(token);
 
-        return UserResponseMapper.toResponse(user);
+        String storedToken = redisService.getVerifyEmailToken(userId);
+        if (storedToken == null || !storedToken.equals(token)) {
+            throw new BusinessException(AuthError.INVALID_VERIFY_TOKEN);
+        }
+
+        UserResponse response = userService.verifyEmail(userId);
+
+        redisService.deleteVerifyEmailToken(userId);
+
+        return response;
     }
 
+    // =========================
+    // 🔐 LOGIN (giữ nguyên)
+    // =========================
+    @Override
+    public AuthResponse login(LoginReq req) {git
+
+        log.info("🔐 Login attempt for email: {}", req.getEmail());
+
+        // 1️⃣ Tìm user theo email
+        UserEntity user = userService.getByEmail(req.getEmail())
+                .orElseThrow(() -> {
+                    log.warn("❌ Login failed - Email not found: {}", req.getEmail());
+                    return new BusinessException(UserError.INVALID_CREDENTIALS);
+                });
+
+        // 2️⃣ Check password
+        if (!passwordEncoder.matches(req.getPassword(), user.getPassword())) {
+            log.warn("❌ Login failed - Wrong password for: {}", req.getEmail());
+            throw new BusinessException(UserError.INVALID_CREDENTIALS);
+        }
+
+        // 3️⃣ 🆕 Check email đã verify chưa
+        if (!user.isEmailVerified()) {
+            log.warn("⚠️ Login failed - Email not verified: {}", req.getEmail());
+            throw new BusinessException(UserError.EMAIL_NOT_VERIFIED);
+        }
+
+        // 4️⃣ Generate tokens
+        String userId = user.getId();
+        List<String> roles = List.of("ROLE_" + user.getRole().name());
+
+        String accessToken = jwtService.generateAccessToken(userId, roles);
+        String refreshToken = jwtService.generateRefreshToken(userId);
+
+        // 5️⃣ Save refresh token vào Redis
+        redisService.saveRefreshToken(
+                userId,
+                refreshToken,
+                jwtService.getRefreshTokenExpiration()
+        );
+
+        log.info("✅ Login successful for user: {}", userId);
+
+        return AuthResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .user(UserResponseMapper.toResponse(user))
+                .build();
+    }
+
+
+    // =========================
+    // 🚪 LOGOUT (giữ nguyên)
+    // =========================
+    @Override
+    public void logout(String accessToken) {
+
+        String jti = jwtService.extractJti(accessToken);
+        long ttlMillis = jwtService.getRemainingTime(accessToken);
+
+        redisService.blacklistAccessToken(jti, ttlMillis);
+
+        String userId = jwtService.extractUserId(accessToken);
+        redisService.deleteRefreshToken(userId);
+    }
+
+    // =========================
+    // 🔁 REFRESH TOKEN (giữ nguyên)
+    // =========================
+    @Override
+    public AuthResponse refreshToken(RefreshTokenReq req) {
+
+        String refreshToken = req.getRefreshToken();
+
+        if (!jwtService.validateToken(refreshToken)) {
+            throw new BusinessException(AuthError.INVALID_REFRESH_TOKEN);
+        }
+
+        String userId = jwtService.extractUserId(refreshToken);
+
+        String storedRefreshToken = redisService.getRefreshToken(userId);
+        if (storedRefreshToken == null || !storedRefreshToken.equals(refreshToken)) {
+            throw new BusinessException(AuthError.REFRESH_TOKEN_NOT_FOUND);
+        }
+
+        UserEntity user = userService.getUserById(userId)
+                .orElseThrow(() ->
+                        new BusinessException(UserError.USER_NOT_FOUND)
+                );
+
+        List<String> roles = List.of(
+                "ROLE_" + user.getRole().name()
+        );
+
+        String newAccessToken = jwtService.generateAccessToken(userId, roles);
+        String newRefreshToken = jwtService.generateRefreshToken(userId);
+
+        redisService.saveRefreshToken(
+                userId,
+                newRefreshToken,
+                jwtService.getRefreshTokenExpiration()
+        );
+
+        return AuthResponse.builder()
+                .accessToken(newAccessToken)
+                .refreshToken(newRefreshToken)
+                .user(UserResponseMapper.toResponse(user))
+                .build();
+    }
 }

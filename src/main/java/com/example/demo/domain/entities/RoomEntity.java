@@ -14,10 +14,5 @@ import java.time.Instant;
 public class RoomEntity {
     private String id;
     private String name;
-    private String description;
-    private Integer capacity;
-    private String ownerId;
-    private boolean active;
-    private Instant createdAt;
-    private Instant updatedAt;
+
 }

@@ -66,4 +66,27 @@ public class RedisService {
     public void deleteVerifyEmailToken(String userId) {
         redisTemplate.delete("verify:email:" + userId);
     }
+
+    // =========================
+// 🔑 FORGOT PASSWORD OTP
+// =========================
+    public void saveForgotPasswordOtp(String email, String otp, long ttlMillis) {
+        redisTemplate.opsForValue().set(
+                "forgot:password:otp:" + email,
+                otp,
+                Duration.ofMillis(ttlMillis)
+        );
+    }
+
+    public String getForgotPasswordOtp(String email) {
+        return redisTemplate.opsForValue().get(
+                "forgot:password:otp:" + email
+        );
+    }
+
+    public void deleteForgotPasswordOtp(String email) {
+        redisTemplate.delete(
+                "forgot:password:otp:" + email
+        );
+    }
 }

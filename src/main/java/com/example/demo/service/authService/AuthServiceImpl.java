@@ -1,24 +1,26 @@
 package com.example.demo.service.authService;
 
-import com.example.demo.domain.dto.req.*;
-import com.example.demo.exception.auth.AuthError;
 import com.example.demo.config.jwt.JwtService;
+import com.example.demo.domain.dto.req.*;
 import com.example.demo.domain.dto.res.AuthResponse;
 import com.example.demo.domain.dto.res.UserResponse;
 import com.example.demo.domain.entities.UserEntity;
 import com.example.demo.exception.BusinessException;
+import com.example.demo.exception.auth.AuthError;
 import com.example.demo.exception.user.UserError;
 import com.example.demo.infrastructure.user.mapper.UserResponseMapper;
-import com.example.demo.service.emailService.AsyncEmailService;  // 👈 THAY ĐỔI
-import com.example.demo.service.redisConfig.RedisService;
+import com.example.demo.service.emailService.AsyncEmailService;
+import com.example.demo.service.redisConfig.RedisFacade;
 import com.example.demo.service.user.IUserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.List;
-@Slf4j  // 👈 THÊM
+
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthServiceImpl implements IAuthService {
@@ -26,220 +28,108 @@ public class AuthServiceImpl implements IAuthService {
     private final IUserService userService;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
-    private final RedisService redisService;
-    private final AsyncEmailService asyncEmailService;  // 👈 THAY ĐỔI: IEmailService → AsyncEmailService
+    private final RedisFacade redis;
+    private final AsyncEmailService asyncEmailService;
 
-    // =========================
+    // =====================================================
     // 🆕 REGISTER
-    // =========================
+    // =====================================================
     @Override
     public UserResponse register(CreateUserReq req) {
 
-        log.info("📝 Register request for email: {}", req.getEmail());
-        long startTime = System.currentTimeMillis();
+        UserResponse user = userService.createUser(req);
 
-        try {
-            // 1️⃣ Tạo user mới
-            UserResponse user = userService.createUser(req);
+        String verifyToken = jwtService.generateVerifyToken(user.getId());
 
-            // 2️⃣ Generate token & save Redis (SYNC - nhanh)
-            String verifyToken = jwtService.generateVerifyToken(user.getId());
-            redisService.saveVerifyEmailToken(
-                    user.getId(),
-                    verifyToken,
-                    jwtService.getVerifyTokenExpiration()
-            );
+        redis.verifyEmailToken.save(
+                user.getId(),
+                verifyToken,
+                jwtService.getVerifyTokenExpiration()
+        );
 
-            // 3️⃣ Gửi email ASYNC - KHÔNG CHỜ ĐỢI 🚀
-            asyncEmailService.sendVerifyEmailAsync(user.getEmail(), verifyToken);
+        asyncEmailService.sendVerifyEmailAsync(user.getEmail(), verifyToken);
 
-            long duration = System.currentTimeMillis() - startTime;
-            log.info("✅ User registered successfully: {} (API took {}ms)", user.getId(), duration);
-
-            return user;
-
-        } catch (BusinessException ex) {
-
-            // Nếu email chưa verify → xử lý resend
-            if (ex.getError() == UserError.EMAIL_NOT_VERIFIED) {
-
-                UserEntity user = userService.getByEmail(req.getEmail())
-                        .orElseThrow(() -> new BusinessException(UserError.USER_NOT_FOUND));
-
-                handleResendVerifyEmail(user);
-
-                throw ex;
-            }
-
-            throw ex;
-        }
+        return user;
     }
 
-    // =========================
-    // 🔁 RESEND EMAIL
-    // =========================
+    // =====================================================
+    // 🔁 RESEND VERIFY EMAIL
+    // =====================================================
     @Override
     public UserResponse resendEmail(ResendEmailReq req) {
 
-        if (req == null || req.getEmail() == null) {
-            throw new BusinessException(UserError.INVALID_EMAIL);
-        }
-
         String email = req.getEmail().trim();
-        log.info("📧 Resend email request for: {}", email);
 
         UserEntity user = userService.getByEmail(email)
                 .orElseThrow(() -> new BusinessException(UserError.USER_NOT_FOUND));
 
         if (user.isEmailVerified()) {
-            log.info("⚠️ Email already verified: {}", email);
             return UserResponseMapper.toResponse(user);
         }
 
-        handleResendVerifyEmail(user);
+        String existingToken = redis.verifyEmailToken.get(user.getId());
+        if (existingToken != null) {
+            return UserResponseMapper.toResponse(user);
+        }
+
+        String newToken = jwtService.generateVerifyToken(user.getId());
+
+        redis.verifyEmailToken.save(
+                user.getId(),
+                newToken,
+                jwtService.getVerifyTokenExpiration()
+        );
+
+        asyncEmailService.sendVerifyEmailAsync(user.getEmail(), newToken);
 
         return UserResponseMapper.toResponse(user);
     }
 
-    // =========================
-    // 🔐 FORGOT PASSWORD
-    // =========================
+    // =====================================================
+    // 🔐 LOGIN (RATE LIMIT)
+    // =====================================================
     @Override
-    public void forgotPassword(ForgotPasswordReq req) {
-
-        if (req == null || req.getEmail() == null || req.getEmail().isBlank()) {
-            throw new BusinessException(UserError.INVALID_EMAIL);
-        }
+    public AuthResponse login(LoginReq req) {
 
         String email = req.getEmail().trim();
-        log.info("🔐 Forgot password request for: {}", email);
 
-        // 1️⃣ Check user tồn tại
+        if (redis.loginRateLimit.isBlocked(email)) {
+            long retryAfter = redis.loginRateLimit.getBlockRemaining(email);
+            throw new BusinessException(
+                    AuthError.TOO_MANY_LOGIN_ATTEMPTS,
+                    "Đăng nhập sai quá nhiều. Thử lại sau " + retryAfter + " giây.",
+                    retryAfter
+            );
+        }
+
         UserEntity user = userService.getByEmail(email)
-                .orElseThrow(() -> new BusinessException(UserError.USER_NOT_FOUND));
-
-        // 2️⃣ Sinh OTP
-        String otp = generateOtp();
-
-        // 3️⃣ Lưu OTP vào Redis (5 phút)
-        redisService.saveForgotPasswordOtp(
-                email,
-                otp,
-                5 * 60 * 1000 // 5 phút
-        );
-
-        // 4️⃣ Gửi email OTP - ASYNC 🚀
-        asyncEmailService.sendForgotPasswordOtpAsync(email, otp);
-
-        log.info("✅ Forgot password OTP generated for: {}", email);
-    }
-
-    // =========================
-    // 📧 PRIVATE METHODS
-    // =========================
-
-    private void handleResendVerifyEmail(UserEntity user) {
-
-        String userId = user.getId();
-
-        // Check token cũ trong Redis
-        String existingToken = redisService.getVerifyEmailToken(userId);
-
-        if (existingToken != null) {
-            log.info("⏳ Token still valid for user: {}, skipping resend", userId);
-            return;
-        }
-
-        // Token hết hạn → tạo token mới
-        log.info("🔁 Generating new verify token for user: {}", userId);
-
-        String verifyToken = jwtService.generateVerifyToken(userId);
-
-        redisService.saveVerifyEmailToken(
-                userId,
-                verifyToken,
-                jwtService.getVerifyTokenExpiration()
-        );
-
-        // Gửi email ASYNC 🚀
-        asyncEmailService.sendVerifyEmailAsync(user.getEmail(), verifyToken);
-    }
-
-    private String generateOtp() {
-        return String.valueOf((int)(Math.random() * 900000) + 100000);
-    }
-
-    // =========================
-    // 🔐 VERIFY EMAIL (giữ nguyên)
-    // =========================
-    @Override
-    public UserResponse verifyEmail(String token) {
-
-        if (token == null || !jwtService.validateToken(token)) {
-            throw new BusinessException(AuthError.INVALID_VERIFY_TOKEN);
-        }
-
-        String purpose = jwtService.extractPurpose(token);
-        if (!"verify".equals(purpose)) {
-            throw new BusinessException(AuthError.INVALID_VERIFY_TOKEN);
-        }
-
-        String userId = jwtService.extractUserId(token);
-
-        String storedToken = redisService.getVerifyEmailToken(userId);
-        if (storedToken == null || !storedToken.equals(token)) {
-            throw new BusinessException(AuthError.INVALID_VERIFY_TOKEN);
-        }
-
-        UserResponse response = userService.verifyEmail(userId);
-
-        redisService.deleteVerifyEmailToken(userId);
-
-        return response;
-    }
-
-    // =========================
-    // 🔐 LOGIN (giữ nguyên)
-    // =========================
-    @Override
-    public AuthResponse login(LoginReq req) {git
-
-        log.info("🔐 Login attempt for email: {}", req.getEmail());
-
-        // 1️⃣ Tìm user theo email
-        UserEntity user = userService.getByEmail(req.getEmail())
                 .orElseThrow(() -> {
-                    log.warn("❌ Login failed - Email not found: {}", req.getEmail());
+                    handleFailedLogin(email);
                     return new BusinessException(UserError.INVALID_CREDENTIALS);
                 });
 
-        // 2️⃣ Check password
         if (!passwordEncoder.matches(req.getPassword(), user.getPassword())) {
-            log.warn("❌ Login failed - Wrong password for: {}", req.getEmail());
+            handleFailedLogin(email);
             throw new BusinessException(UserError.INVALID_CREDENTIALS);
         }
 
-        // 3️⃣ 🆕 Check email đã verify chưa
         if (!user.isEmailVerified()) {
-            log.warn("⚠️ Login failed - Email not verified: {}", req.getEmail());
             throw new BusinessException(UserError.EMAIL_NOT_VERIFIED);
         }
 
-        // 4️⃣ Generate tokens
+        redis.loginRateLimit.clear(email);
+
         String userId = user.getId();
         List<String> roles = List.of("ROLE_" + user.getRole().name());
 
         String accessToken = jwtService.generateAccessToken(userId, roles);
         String refreshToken = jwtService.generateRefreshToken(userId);
 
-        // 5️⃣ Save refresh token vào Redis
-        redisService.saveRefreshToken(
+        redis.refreshToken.save(
                 userId,
                 refreshToken,
                 jwtService.getRefreshTokenExpiration()
         );
-
-        log.info("✅ Login successful for user: {}", userId);
 
         return AuthResponse.builder()
                 .accessToken(accessToken)
@@ -248,25 +138,164 @@ public class AuthServiceImpl implements IAuthService {
                 .build();
     }
 
+    private void handleFailedLogin(String email) {
 
-    // =========================
-    // 🚪 LOGOUT (giữ nguyên)
-    // =========================
+        boolean blocked = redis.loginRateLimit.recordFailed(email);
+
+        if (blocked) {
+            long retryAfter = redis.loginRateLimit.getBlockRemaining(email);
+            throw new BusinessException(
+                    AuthError.TOO_MANY_LOGIN_ATTEMPTS,
+                    "Đăng nhập sai quá nhiều. Thử lại sau " + retryAfter + " giây.",
+                    retryAfter
+            );
+        }
+    }
+
+    // =====================================================
+    // 🔐 FORGOT PASSWORD (SEND OTP)
+    // =====================================================
+    @Override
+    public void forgotPassword(ForgotPasswordReq req) {
+
+        String email = req.getEmail().trim();
+
+        userService.getByEmail(email)
+                .orElseThrow(() -> new BusinessException(UserError.USER_NOT_FOUND));
+
+        String otp = generateOtp();
+
+        redis.forgotPasswordOtp.save(
+                email,
+                otp,
+                Duration.ofMinutes(5)
+        );
+
+        asyncEmailService.sendForgotPasswordOtpAsync(email, otp);
+    }
+
+    // =====================================================
+    // 🔐 VERIFY OTP (RATE LIMIT)
+    // =====================================================
+    @Override
+    public String verifyForgotPasswordOtp(VerifyForgotPasswordOtpReq req) {
+
+        String email = req.getEmail().trim();
+        String otp = req.getOtp().trim();
+
+        if (redis.otpRateLimit.isBlocked(email)) {
+            long retryAfter = redis.otpRateLimit.getBlockRemaining(email);
+            throw new BusinessException(
+                    AuthError.TOO_MANY_OTP_ATTEMPTS,
+                    "Nhập OTP sai quá nhiều. Thử lại sau " + retryAfter + " giây.",
+                    retryAfter
+            );
+        }
+
+        String storedOtp = redis.forgotPasswordOtp.get(email);
+
+        if (storedOtp == null || !storedOtp.equals(otp)) {
+
+            boolean blocked = redis.otpRateLimit.recordFailed(email);
+
+            if (blocked) {
+                long retryAfter = redis.otpRateLimit.getBlockRemaining(email);
+                throw new BusinessException(
+                        AuthError.TOO_MANY_OTP_ATTEMPTS,
+                        "Nhập OTP sai quá nhiều. Thử lại sau " + retryAfter + " giây.",
+                        retryAfter
+                );
+            }
+
+            throw new BusinessException(AuthError.INVALID_OTP);
+        }
+
+        redis.otpRateLimit.clear(email);
+        redis.forgotPasswordOtp.delete(email);
+
+        String resetToken = jwtService.generateResetPasswordToken(email);
+
+        redis.resetPasswordToken.save(
+                email,
+                resetToken,
+                Duration.ofMinutes(10)
+        );
+
+        return resetToken;
+    }
+
+    // =====================================================
+    // 🔐 RESET PASSWORD
+    // =====================================================
+    @Override
+    public void resetPassword(ResetPasswordReq req) {
+
+        String resetToken = req.getResetToken();
+
+        if (!jwtService.validateToken(resetToken)) {
+            throw new BusinessException(AuthError.INVALID_RESET_TOKEN);
+        }
+
+        String email = jwtService.extractEmail(resetToken);
+
+        String storedToken = redis.resetPasswordToken.get(email);
+        if (storedToken == null || !storedToken.equals(resetToken)) {
+            throw new BusinessException(AuthError.INVALID_RESET_TOKEN);
+        }
+
+        UserEntity user = userService.getByEmail(email)
+                .orElseThrow(() -> new BusinessException(UserError.USER_NOT_FOUND));
+
+        user.setPassword(passwordEncoder.encode(req.getNewPassword()));
+        userService.save(user);
+
+        redis.resetPasswordToken.delete(email);
+    }
+
+    // =====================================================
+    // 🔐 VERIFY EMAIL
+    // =====================================================
+    @Override
+    public UserResponse verifyEmail(String token) {
+
+        if (!jwtService.validateToken(token)) {
+            throw new BusinessException(AuthError.INVALID_VERIFY_TOKEN);
+        }
+
+        String userId = jwtService.extractUserId(token);
+
+        String storedToken = redis.verifyEmailToken.get(userId);
+        if (storedToken == null || !storedToken.equals(token)) {
+            throw new BusinessException(AuthError.INVALID_VERIFY_TOKEN);
+        }
+
+        UserResponse response = userService.verifyEmail(userId);
+        redis.verifyEmailToken.delete(userId);
+
+        return response;
+    }
+
+    // =====================================================
+    // 🚪 LOGOUT
+    // =====================================================
     @Override
     public void logout(String accessToken) {
 
         String jti = jwtService.extractJti(accessToken);
-        long ttlMillis = jwtService.getRemainingTime(accessToken);
+        redis.accessTokenBlacklist.blacklist(
+                jti,
+                jwtService.getRemainingDuration(accessToken)
+        );
 
-        redisService.blacklistAccessToken(jti, ttlMillis);
+
 
         String userId = jwtService.extractUserId(accessToken);
-        redisService.deleteRefreshToken(userId);
+        redis.refreshToken.delete(userId);
     }
 
-    // =========================
-    // 🔁 REFRESH TOKEN (giữ nguyên)
-    // =========================
+    // =====================================================
+    // 🔁 REFRESH TOKEN
+    // =====================================================
     @Override
     public AuthResponse refreshToken(RefreshTokenReq req) {
 
@@ -278,24 +307,20 @@ public class AuthServiceImpl implements IAuthService {
 
         String userId = jwtService.extractUserId(refreshToken);
 
-        String storedRefreshToken = redisService.getRefreshToken(userId);
-        if (storedRefreshToken == null || !storedRefreshToken.equals(refreshToken)) {
+        String storedToken = redis.refreshToken.get(userId);
+        if (storedToken == null || !storedToken.equals(refreshToken)) {
             throw new BusinessException(AuthError.REFRESH_TOKEN_NOT_FOUND);
         }
 
         UserEntity user = userService.getUserById(userId)
-                .orElseThrow(() ->
-                        new BusinessException(UserError.USER_NOT_FOUND)
-                );
+                .orElseThrow(() -> new BusinessException(UserError.USER_NOT_FOUND));
 
-        List<String> roles = List.of(
-                "ROLE_" + user.getRole().name()
-        );
+        List<String> roles = List.of("ROLE_" + user.getRole().name());
 
         String newAccessToken = jwtService.generateAccessToken(userId, roles);
         String newRefreshToken = jwtService.generateRefreshToken(userId);
 
-        redisService.saveRefreshToken(
+        redis.refreshToken.save(
                 userId,
                 newRefreshToken,
                 jwtService.getRefreshTokenExpiration()
@@ -306,5 +331,12 @@ public class AuthServiceImpl implements IAuthService {
                 .refreshToken(newRefreshToken)
                 .user(UserResponseMapper.toResponse(user))
                 .build();
+    }
+
+    // =====================================================
+    // 🔢 UTIL
+    // =====================================================
+    private String generateOtp() {
+        return String.valueOf((int) (Math.random() * 900000) + 100000);
     }
 }

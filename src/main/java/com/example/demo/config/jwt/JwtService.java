@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
+import java.time.Duration;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
@@ -19,7 +20,17 @@ public class JwtService {
 
     private final JwtProperties jwtProperties;
 
-    // 🔑 Key ký JWT
+    public Duration getAccessTokenExpiration() {
+        return Duration.ofMillis(jwtProperties.getAccessTokenExpiration());
+    }
+
+    public Duration getRefreshTokenExpiration() {
+        return Duration.ofMillis(jwtProperties.getRefreshTokenExpiration());
+    }
+
+    public Duration getVerifyTokenExpiration() {
+        return Duration.ofMillis(jwtProperties.getVerifyTokenExpiration());
+    }
     private Key signingKey() {
         return Keys.hmacShaKeyFor(
                 jwtProperties.getSecret().getBytes(StandardCharsets.UTF_8)
@@ -33,13 +44,11 @@ public class JwtService {
         Date now = new Date();
 
         return Jwts.builder()
-                .setId(UUID.randomUUID().toString())   // ✅ jti
+                .setId(UUID.randomUUID().toString())
                 .setSubject(userId)
                 .claim("roles", roles)
                 .setIssuedAt(now)
-                .setExpiration(
-                        new Date(now.getTime() + jwtProperties.getAccessTokenExpiration())
-                )
+                .setExpiration(new Date(now.getTime() + jwtProperties.getAccessTokenExpiration()))
                 .signWith(signingKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
@@ -51,18 +60,16 @@ public class JwtService {
         Date now = new Date();
 
         return Jwts.builder()
-                .setId(UUID.randomUUID().toString())   // ✅ jti
+                .setId(UUID.randomUUID().toString())
                 .setSubject(userId)
                 .setIssuedAt(now)
-                .setExpiration(
-                        new Date(now.getTime() + jwtProperties.getRefreshTokenExpiration())
-                )
+                .setExpiration(new Date(now.getTime() + jwtProperties.getRefreshTokenExpiration()))
                 .signWith(signingKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
 
     // =========================
-    // ✅ VERIFY / OTP TOKEN
+    // ✉️ VERIFY EMAIL TOKEN
     // =========================
     public String generateVerifyToken(String userId) {
         Date now = new Date();
@@ -72,15 +79,25 @@ public class JwtService {
                 .setSubject(userId)
                 .claim("purpose", "verify")
                 .setIssuedAt(now)
-                .setExpiration(
-                        new Date(now.getTime() + jwtProperties.getVerifyTokenExpiration())
-                )
+                .setExpiration(new Date(now.getTime() + jwtProperties.getVerifyTokenExpiration()))
                 .signWith(signingKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
 
-    public long getVerifyTokenExpiration() {
-        return jwtProperties.getVerifyTokenExpiration();
+    // =========================
+    // 🔐 RESET PASSWORD TOKEN (🆕)
+    // =========================
+    public String generateResetPasswordToken(String email) {
+        Date now = new Date();
+
+        return Jwts.builder()
+                .setId(UUID.randomUUID().toString())
+                .setSubject(email)
+                .claim("purpose", "reset-password")
+                .setIssuedAt(now)
+                .setExpiration(new Date(now.getTime() + 10 * 60 * 1000)) // 10 phút
+                .signWith(signingKey(), SignatureAlgorithm.HS256)
+                .compact();
     }
 
     // =========================
@@ -90,16 +107,18 @@ public class JwtService {
         return extractClaims(token).getSubject();
     }
 
+    public String extractEmail(String token) {
+        return extractClaims(token).getSubject();
+    }
+
     public String extractJti(String token) {
         return extractClaims(token).getId();
     }
 
-    @SuppressWarnings("unchecked")
     public List<String> extractRoles(String token) {
         return extractClaims(token).get("roles", List.class);
     }
 
-    // Extract custom "purpose" claim (e.g., "verify")
     public String extractPurpose(String token) {
         return extractClaims(token).get("purpose", String.class);
     }
@@ -111,9 +130,11 @@ public class JwtService {
         Date expiration = extractClaims(token).getExpiration();
         return expiration.getTime() - System.currentTimeMillis();
     }
-    public long getRefreshTokenExpiration() {
-        return jwtProperties.getRefreshTokenExpiration();
+
+    public Duration getRemainingDuration(String token) {
+        return Duration.ofMillis(getRemainingTime(token));
     }
+
 
 
     // =========================

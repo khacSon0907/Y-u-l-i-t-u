@@ -51,14 +51,29 @@ public enum UserError implements ErrorDescriptor {
             "AUTH",
             404,
             "AUTH.USER_NOT_FOUND",
-            "Không tìm thấy người dùng"
+            "Email không tồn tại"
     ),
 
     EMAIL_NOT_VERIFIED(
-        "BUSINESS",
-                403,
-                "USER.EMAIL_NOT_VERIFIED",
-                "Email chưa được xác nhận. Vui lòng kiểm tra email."
+            "BUSINESS",
+            403,
+            "USER.EMAIL_NOT_VERIFIED",
+            "Email chưa được xác nhận. Vui lòng kiểm tra email."
+    ),
+
+    // --- CHANGE PASSWORD ---
+    CURRENT_PASSWORD_INCORRECT(
+            "BUSINESS",
+            400,
+            "USER.CURRENT_PASSWORD_INCORRECT",
+            "Mật khẩu hiện tại không đúng"
+    ),
+
+    PASSWORD_SAME_AS_CURRENT(
+            "BUSINESS",
+            400,
+            "USER.PASSWORD_SAME_AS_CURRENT",
+            "Mật khẩu mới phải khác mật khẩu hiện tại"
     );
 
 

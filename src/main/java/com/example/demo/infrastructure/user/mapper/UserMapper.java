@@ -5,13 +5,10 @@ import com.example.demo.domain.enums.Role;
 import com.example.demo.domain.model.UserDocument;
 
 import java.util.Optional;
-
 public class UserMapper {
-
     // Document (Mongo) -> Entity (Domain)
     public static UserEntity toEntity(UserDocument document) {
         if (document == null) return null;
-
         return UserEntity.builder()
                 .id(document.getId())
                 .username(document.getUsername())
@@ -21,13 +18,13 @@ public class UserMapper {
                 .emailVerified(document.isEmailVerified())
                 .role(Optional.ofNullable(document.getRole())
                         .orElse(Role.USER))
+                .createdAt(document.getCreatedAt())
+                .updatedAt(document.getUpdatedAt())
                 .build();
     }
-
     // Entity (Domain) -> Document (Mongo)
     public static UserDocument toDocument(UserEntity entity) {
         if (entity == null) return null;
-
         return UserDocument.builder()
                 .id(entity.getId())
                 .username(entity.getUsername())
@@ -36,6 +33,8 @@ public class UserMapper {
                 .year(entity.getYear())
                 .emailVerified(entity.isEmailVerified())
                 .role(entity.getRole())
+                .createdAt(entity.getCreatedAt())
+                .updatedAt(entity.getUpdatedAt())
                 .build();
     }
 }

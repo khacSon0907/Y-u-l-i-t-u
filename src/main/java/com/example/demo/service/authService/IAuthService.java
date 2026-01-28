@@ -20,4 +20,10 @@ public interface IAuthService {
 
     // Resend verification email for given email
     UserResponse resendEmail(ResendEmailReq req);
+
+    // 🆕 Xác nhận OTP quên mật khẩu
+    String verifyForgotPasswordOtp(VerifyForgotPasswordOtpReq req);
+
+    // 🆕 Reset mật khẩu
+    void resetPassword(ResetPasswordReq req);
 }

@@ -39,3 +39,16 @@ app:
   mail:
     from: " TroSmart <creatine09072004@gmail.com> "
     verify-endpoint: /api/authService/verify
+
+  cookie:
+    # Development: false (HTTP), Production: true (HTTPS only)
+    secure: false
+
+    # Domain cho cookie (để localhost khi dev)
+    domain: localhost
+
+    # Access token cookie max age (seconds) - 15 phút
+    access-token-max-age: 900
+
+    # Refresh token cookie max age (seconds) - 7 ngày
+    refresh-token-max-age: 604800

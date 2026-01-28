@@ -2,6 +2,7 @@ package com.example.demo.exception;
 
 import com.example.demo.share.error.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
@@ -22,14 +23,36 @@ public class GlobalExceptionHandler {
     private static final int UNPROCESSABLE_ENTITY = 422;
 
     /* =====================================================
-     * 1. BUSINESS EXCEPTION
+     * 1. BUSINESS EXCEPTION (với Rate Limit support)
      * ===================================================== */
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ErrorResponse> handleBusinessException(
             BusinessException ex,
-            HttpServletRequest req
+            HttpServletRequest req,
+            HttpServletResponse res
     ) {
         ErrorDescriptor error = ex.getError();
+
+        // 🆕 Handle rate limit - add Retry-After header
+        if (ex.getRetryAfterSeconds() != null) {
+            res.setHeader("Retry-After", String.valueOf(ex.getRetryAfterSeconds()));
+
+            // Build detail with retryAfterSeconds
+            Map<String, Object> rateLimitDetail = new LinkedHashMap<>();
+            rateLimitDetail.put("retryAfterSeconds", ex.getRetryAfterSeconds());
+
+            log.warn("[RATE_LIMIT] code={}, message={}, retryAfter={}s",
+                    error.code(), ex.messageToClient(), ex.getRetryAfterSeconds());
+
+            return buildErrorResponse(
+                    error.type(),
+                    error.httpStatus(),
+                    error.code(),
+                    ex.messageToClient(),
+                    rateLimitDetail,
+                    req
+            );
+        }
 
         log.warn("[BUSINESS_ERROR] code={}, message={}",
                 error.code(), ex.messageToClient());

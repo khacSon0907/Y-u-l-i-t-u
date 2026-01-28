@@ -83,7 +83,9 @@ public class SecurityConfig {
                                 "/v3/api-docs/**"
                         ).permitAll()
                         .requestMatchers("/api/authService/**").permitAll()
+                        .requestMatchers("api/auth/**").permitAll()
                         .requestMatchers("/api/users/**").hasRole("USER")
+                        .requestMatchers("/api/users/change-password").authenticated()
                         .anyRequest().authenticated()
                 )
 

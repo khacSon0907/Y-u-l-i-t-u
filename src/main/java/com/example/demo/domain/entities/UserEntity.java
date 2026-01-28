@@ -7,6 +7,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.Instant;
+
 @Builder
 @Data
 @AllArgsConstructor
@@ -19,4 +21,6 @@ public class UserEntity {
     private int year ;
     private Role role; // ROLE_USER / ROLE_ADMIN
     private boolean emailVerified;
+    private Instant createdAt;
+    private Instant updatedAt;
 }

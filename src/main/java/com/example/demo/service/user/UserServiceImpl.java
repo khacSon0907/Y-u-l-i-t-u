@@ -1,6 +1,7 @@
 package com.example.demo.service.user;
 
 import com.example.demo.config.SecurityConfig;
+import com.example.demo.domain.dto.req.ChangePasswordReq;
 import com.example.demo.domain.dto.req.CreateUserReq;
 import com.example.demo.domain.dto.req.UpdateUserReq;
 import com.example.demo.domain.dto.res.UserResponse;
@@ -14,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.time.Year;
 import java.util.List;
 import java.util.Locale;
@@ -64,6 +66,8 @@ public class UserServiceImpl implements IUserService {
                 .year(req.getYear())
                 .role(Role.USER)
                 .emailVerified(false)
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
                 .build();
 
         return UserResponseMapper.toResponse(userRepository.save(user));
@@ -136,6 +140,34 @@ public class UserServiceImpl implements IUserService {
         }
 
         return UserResponseMapper.toResponse(existing);
+    }
+    @Override
+    public UserEntity save(UserEntity user) {
+        return userRepository.save(user);
+    }
+
+    @Override
+    public void changePassword(String userId, ChangePasswordReq req) {
+        // 1️⃣ Get user
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(UserError.USER_NOT_FOUND));
+
+        // 2️⃣ Verify current password
+        if (!passwordEncoder.matches(req.getCurrentPassword(), user.getPassword())) {
+            throw new BusinessException(UserError.CURRENT_PASSWORD_INCORRECT);
+        }
+
+        // 3️⃣ Check if new password is same as current password
+        if (passwordEncoder.matches(req.getNewPassword(), user.getPassword())) {
+            throw new BusinessException(UserError.PASSWORD_SAME_AS_CURRENT);
+        }
+
+        // 4️⃣ Update password
+        user.setPassword(passwordEncoder.encode(req.getNewPassword()));
+        user.setUpdatedAt(Instant.now());
+
+        // 5️⃣ Save
+        userRepository.save(user);
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.example.demo.service.user;
 
+import com.example.demo.domain.dto.req.ChangePasswordReq;
 import com.example.demo.domain.dto.req.CreateUserReq;
 import com.example.demo.domain.dto.req.UpdateUserReq;
 import com.example.demo.domain.dto.res.UserResponse;
@@ -10,18 +11,37 @@ import java.util.Optional;
 
 public interface IUserService {
 
+
+
+
+
+    // =========================
+    // 🆕 CREATE
+    // =========================
     UserResponse createUser(CreateUserReq req);
 
+    // =========================
+    // 📄 READ
+    // =========================
     List<UserResponse> getAllUsers();
 
     Optional<UserEntity> getByEmail(String email);
 
     Optional<UserEntity> getUserById(String userId);
 
-    // Update user by id (only username and year)
+    // =========================
+    // ✏️ UPDATE
+    // =========================
     UserResponse updateUser(String userId, UpdateUserReq req);
 
-    // Verify user's email (set emailVerified = true)
+    // Verify user's email (emailVerified = true)
     UserResponse verifyEmail(String userId);
 
+    // =========================
+    // 🧱 LOW-LEVEL (🆕)
+    // =========================
+    UserEntity save(UserEntity user);
+
+    // Change user's password
+    void changePassword(String userId, ChangePasswordReq req);
 }
